@@ -1,0 +1,34 @@
+import "./styles/global.scss";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: {
+        default: "HMCTS Courts Prototype",
+        template: "%s – HMCTS Courts Prototype",
+    },
+    description:
+        "Prototype of FaCT screens using Next.js SSR and GOV.UK Frontend",
+};
+
+export default function RootLayout({
+    children,
+}: {
+    children: React.ReactNode;
+}) {
+    return (
+        <html lang="en" className="govuk-template">
+            <body className="govuk-template__body">
+                <a className="govuk-skip-link" href="#main-content">
+                    Skip to main content
+                </a>
+                {children}
+                <div
+                    aria-live="polite"
+                    aria-atomic="true"
+                    className="govuk-visually-hidden"
+                    id="live-region"
+                />
+            </body>
+        </html>
+    );
+}
