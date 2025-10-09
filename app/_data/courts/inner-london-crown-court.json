@@ -1,0 +1,33 @@
+{
+    "slug": "inner-london-crown-court",
+    "name": "Inner London Crown Court",
+    "type": "Crown Court",
+    "area": "London",
+    "address": {
+        "line1": "1 Sessions House",
+        "line2": "Newington Causeway",
+        "line3": "London",
+        "postcode": "SE1 6AZ"
+    },
+    "contact": {
+        "phone": "020 7947 6000",
+        "email": "inner.london.crown.court@justice.gov.uk"
+    },
+    "openingHours": {
+        "monday": "9:00am to 5:00pm",
+        "tuesday": "9:00am to 5:00pm",
+        "wednesday": "9:00am to 5:00pm",
+        "thursday": "9:00am to 5:00pm",
+        "friday": "9:00am to 5:00pm",
+        "saturday": "Closed",
+        "sunday": "Closed"
+    },
+    "facilities": [
+        "Wheelchair access",
+        "Hearing loop",
+        "Refreshments",
+        "Video link facilities",
+        "Secure dock"
+    ],
+    "description": "Inner London Crown Court is a historic court building in central London, handling serious criminal cases for the Inner London area."
+}

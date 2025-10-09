@@ -1,0 +1,31 @@
+{
+    "slug": "manchester-crown-court",
+    "name": "Manchester Crown Court",
+    "type": "Crown Court",
+    "area": "North West",
+    "address": {
+        "line1": "1 Crown Square",
+        "line2": "Manchester",
+        "postcode": "M60 7BY"
+    },
+    "contact": {
+        "phone": "0161 240 5000",
+        "email": "manchester.crown.court@justice.gov.uk"
+    },
+    "openingHours": {
+        "monday": "9:00am to 5:00pm",
+        "tuesday": "9:00am to 5:00pm",
+        "wednesday": "9:00am to 5:00pm",
+        "thursday": "9:00am to 5:00pm",
+        "friday": "9:00am to 5:00pm",
+        "saturday": "Closed",
+        "sunday": "Closed"
+    },
+    "facilities": [
+        "Wheelchair access",
+        "Hearing loop",
+        "Parking",
+        "Refreshments"
+    ],
+    "description": "Manchester Crown Court is a modern court building in the city centre, handling serious criminal cases for the Greater Manchester area."
+}

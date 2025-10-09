@@ -1,0 +1,20 @@
+[
+    {
+        "slug": "manchester-crown-court",
+        "name": "Manchester Crown Court",
+        "type": "Crown Court",
+        "area": "North West"
+    },
+    {
+        "slug": "birmingham-crown-court",
+        "name": "Birmingham Crown Court",
+        "type": "Crown Court",
+        "area": "West Midlands"
+    },
+    {
+        "slug": "inner-london-crown-court",
+        "name": "Inner London Crown Court",
+        "type": "Crown Court",
+        "area": "London"
+    }
+]

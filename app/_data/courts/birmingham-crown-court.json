@@ -1,0 +1,32 @@
+{
+    "slug": "birmingham-crown-court",
+    "name": "Birmingham Crown Court",
+    "type": "Crown Court",
+    "area": "West Midlands",
+    "address": {
+        "line1": "Newton Street",
+        "line2": "Birmingham",
+        "postcode": "B4 7NA"
+    },
+    "contact": {
+        "phone": "0121 681 3000",
+        "email": "birmingham.crown.court@justice.gov.uk"
+    },
+    "openingHours": {
+        "monday": "9:00am to 5:00pm",
+        "tuesday": "9:00am to 5:00pm",
+        "wednesday": "9:00am to 5:00pm",
+        "thursday": "9:00am to 5:00pm",
+        "friday": "9:00am to 5:00pm",
+        "saturday": "Closed",
+        "sunday": "Closed"
+    },
+    "facilities": [
+        "Wheelchair access",
+        "Hearing loop",
+        "Parking",
+        "Refreshments",
+        "Video link facilities"
+    ],
+    "description": "Birmingham Crown Court is one of the largest crown courts in England and Wales, dealing with serious criminal cases across the West Midlands region."
+}
