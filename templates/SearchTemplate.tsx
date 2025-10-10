@@ -1,29 +1,59 @@
 "use client";
 
-import { useState, useId } from "react";
+import { useState, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 export default function SearchTemplate() {
-  const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
   const inputId = useId();
   const errorId = useId();
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const focusErrorSummary = () => {
+    if (errorSummaryRef.current) {
+      errorSummaryRef.current.setAttribute("tabindex", "-1");
+      errorSummaryRef.current.focus();
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (typeof window === "undefined") return; // server fallback
     e.preventDefault();
-    
-    if (!searchTerm.trim()) {
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const q = (formData.get("search") as string | null)?.trim() || "";
+    if (!q) {
       setError("Enter a court or tribunal name");
+      focusErrorSummary();
       return;
     }
-    
     setError("");
-    router.push(`/results?q=${encodeURIComponent(searchTerm.trim())}`);
+    router.push(`/results?q=${encodeURIComponent(q)}`);
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form action="/api/search" method="POST" onSubmit={handleSubmit} noValidate>
+      {error && (
+        <div
+          ref={errorSummaryRef}
+          className="govuk-error-summary"
+          aria-labelledby="error-summary-title"
+          role="alert"
+          data-module="govuk-error-summary"
+        >
+          <h2 className="govuk-error-summary__title" id="error-summary-title">
+            There is a problem
+          </h2>
+          <div className="govuk-error-summary__body">
+            <ul className="govuk-list govuk-error-summary__list">
+              <li>
+                <a href={`#${inputId}`}>{error}</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
       <div className="govuk-form-group">
         <label className="govuk-label govuk-label--l" htmlFor={inputId}>
           Find a court or tribunal
@@ -42,8 +72,6 @@ export default function SearchTemplate() {
           id={inputId}
           name="search"
           type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
           aria-describedby={error ? errorId : `${inputId}-hint`}
           aria-invalid={error ? "true" : "false"}
         />
