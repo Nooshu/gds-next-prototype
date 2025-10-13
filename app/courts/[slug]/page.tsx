@@ -42,7 +42,7 @@ interface CourtPageProps {
 
 async function getCourt(slug: string): Promise<Court | null> {
     try {
-        const court = await import(`@/_data/courts/${slug}.json`);
+        const court = await import(`../../_data/courts/${slug}.json`);
         return court.default;
     } catch {
         return null;
@@ -50,7 +50,7 @@ async function getCourt(slug: string): Promise<Court | null> {
 }
 
 export async function generateStaticParams() {
-    const courts = await import("@/_data/courts/index.json");
+    const courts = await import("../../_data/courts/index.json");
     return courts.default.map((court: { slug: string }) => ({
         slug: court.slug,
     }));
@@ -69,7 +69,12 @@ export default async function CourtPage({ params }: CourtPageProps) {
             <GovHeader serviceName="Find a court or tribunal" />
             <main className="govuk-main-wrapper" id="main-content" role="main">
                 <GovContainer>
-                    <GovBreadcrumbs items={[{ href: "/", text: "Home" }, { href: "#", text: court.name }]} />
+                    <GovBreadcrumbs
+                        items={[
+                            { href: "/", text: "Home" },
+                            { href: "#", text: court.name },
+                        ]}
+                    />
 
                     <GovH1>{court.name}</GovH1>
 

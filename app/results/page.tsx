@@ -21,7 +21,7 @@ interface ResultsPageProps {
 }
 
 async function getCourts(): Promise<Court[]> {
-    const courts = await import("@/_data/courts/index.json");
+    const courts = await import("../_data/courts/index.json");
     return courts.default;
 }
 
@@ -96,7 +96,7 @@ export default function ResultsPage({ searchParams }: ResultsPageProps) {
 
     return (
         <>
-      <FocusOnRender />
+            <FocusOnRender />
             <GovHeader serviceName="Find a court or tribunal" />
             <main className="govuk-main-wrapper" id="main-content" role="main">
                 <GovContainer>
