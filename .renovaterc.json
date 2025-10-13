@@ -1,0 +1,119 @@
+{
+  "extends": [
+    "config:base",
+    "group:allNonMajor"
+  ],
+  "timezone": "Europe/London",
+  "schedule": [
+    "before 9am on Monday"
+  ],
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "prTitle": "chore(deps): {{depName}} {{updateType}}",
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "semanticCommits": "enabled",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency Dashboard",
+  "packageRules": [
+    {
+      "description": "Group all non-major updates together",
+      "groupName": "all non-major updates",
+      "groupSlug": "all-non-major",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchDepTypes": [
+        "dependencies",
+        "devDependencies"
+      ]
+    },
+    {
+      "description": "Group major updates for React ecosystem",
+      "groupName": "React ecosystem",
+      "groupSlug": "react-ecosystem",
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "description": "Group major updates for Next.js",
+      "groupName": "Next.js",
+      "groupSlug": "nextjs",
+      "matchPackageNames": [
+        "next",
+        "eslint-config-next"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "description": "Group TypeScript updates",
+      "groupName": "TypeScript",
+      "groupSlug": "typescript",
+      "matchPackageNames": [
+        "typescript",
+        "@types/node"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "description": "Group GOV.UK Frontend updates",
+      "groupName": "GOV.UK Frontend",
+      "groupSlug": "govuk-frontend",
+      "matchPackageNames": [
+        "govuk-frontend",
+        "@ministryofjustice/frontend"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ]
+    },
+    {
+      "description": "Auto-merge patch updates for dev dependencies",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 9am on the first day of the month"
+    ]
+  },
+  "rangeStrategy": "bump",
+  "bumpVersion": "patch",
+  "separateMinorPatch": true,
+  "separateMajorMinor": true,
+  "respectLatest": true,
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "branchPrefix": "renovate/",
+  "platformAutomerge": true
+}
