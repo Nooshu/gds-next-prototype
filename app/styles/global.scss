@@ -2,3 +2,11 @@
 @import "@ministryofjustice/frontend/moj/all";
 
 // Base body font and spacing come from GOV.UK Frontend
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
