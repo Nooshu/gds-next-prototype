@@ -2,6 +2,9 @@
 
 import { useState, useId, useRef } from "react";
 import GovErrorSummary from "@/components/govuk/GovErrorSummary";
+import { GovForm } from "@/components/govuk/GovForm";
+import { GovInput } from "@/components/govuk/GovInput";
+import { GovButton } from "@/components/govuk/GovButton";
 import { useRouter } from "next/navigation";
 
 export default function SearchTemplate() {
@@ -34,11 +37,10 @@ export default function SearchTemplate() {
     };
 
     return (
-        <form
+        <GovForm
             action="/api/search"
             method="POST"
             onSubmit={handleSubmit}
-            noValidate
         >
             {error && (
                 <div ref={errorSummaryRef}>
@@ -53,34 +55,17 @@ export default function SearchTemplate() {
                 <label className="govuk-label govuk-label--l" htmlFor={inputId}>
                     Find a court or tribunal
                 </label>
-                <div id={`${inputId}-hint`} className="govuk-hint">
-                    Enter the name of a court or tribunal, for example
-                    Manchester Crown Court
-                </div>
-                {error && (
-                    <p id={errorId} className="govuk-error-message">
-                        <span className="govuk-visually-hidden">Error:</span>
-                        {error}
-                    </p>
-                )}
-                <input
-                    className={`govuk-input ${
-                        error ? "govuk-input--error" : ""
-                    }`}
+                <GovInput
                     id={inputId}
                     name="search"
-                    type="text"
-                    aria-describedby={error ? errorId : `${inputId}-hint`}
-                    aria-invalid={error ? "true" : "false"}
+                    hint="Enter the name of a court or tribunal, for example Manchester Crown Court"
+                    error={error}
+                    describedBy={error ? errorId : undefined}
                 />
             </div>
-            <button
-                className="govuk-button"
-                data-module="govuk-button"
-                type="submit"
-            >
+            <GovButton type="submit">
                 Search
-            </button>
-        </form>
+            </GovButton>
+        </GovForm>
     );
 }
