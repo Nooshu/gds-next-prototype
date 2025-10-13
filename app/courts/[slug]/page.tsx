@@ -3,6 +3,8 @@ import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
 import Link from "next/link";
+import FocusOnRender from "@/components/a11y/FocusOnRender";
+import GovBreadcrumbs from "@/components/govuk/GovBreadcrumbs";
 
 interface Court {
     slug: string;
@@ -63,27 +65,11 @@ export default async function CourtPage({ params }: CourtPageProps) {
 
     return (
         <>
+            <FocusOnRender />
             <GovHeader serviceName="Find a court or tribunal" />
             <main className="govuk-main-wrapper" id="main-content" role="main">
                 <GovContainer>
-                    <nav className="govuk-breadcrumbs" aria-label="Breadcrumb">
-                        <ol className="govuk-breadcrumbs__list">
-                            <li className="govuk-breadcrumbs__list-item">
-                                <Link
-                                    className="govuk-breadcrumbs__link"
-                                    href="/"
-                                >
-                                    Home
-                                </Link>
-                            </li>
-                            <li
-                                className="govuk-breadcrumbs__list-item"
-                                aria-current="page"
-                            >
-                                {court.name}
-                            </li>
-                        </ol>
-                    </nav>
+                    <GovBreadcrumbs items={[{ href: "/", text: "Home" }, { href: "#", text: court.name }]} />
 
                     <GovH1>{court.name}</GovH1>
 

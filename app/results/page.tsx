@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import FocusOnRender from "@/components/a11y/FocusOnRender";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
@@ -95,6 +96,7 @@ export default function ResultsPage({ searchParams }: ResultsPageProps) {
 
     return (
         <>
+      <FocusOnRender />
             <GovHeader serviceName="Find a court or tribunal" />
             <main className="govuk-main-wrapper" id="main-content" role="main">
                 <GovContainer>
