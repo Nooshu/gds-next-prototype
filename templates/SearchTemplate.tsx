@@ -5,6 +5,7 @@ import GovErrorSummary from "@/components/govuk/GovErrorSummary";
 import { GovForm } from "@/components/govuk/GovForm";
 import { GovInput } from "@/components/govuk/GovInput";
 import { GovButton } from "@/components/govuk/GovButton";
+import { GovFieldError } from "@/components/govuk/GovFieldError";
 import { useRouter } from "next/navigation";
 
 export default function SearchTemplate() {
@@ -37,11 +38,7 @@ export default function SearchTemplate() {
     };
 
     return (
-        <GovForm
-            action="/api/search"
-            method="POST"
-            onSubmit={handleSubmit}
-        >
+        <GovForm action="/api/search" method="POST" onSubmit={handleSubmit}>
             {error && (
                 <div ref={errorSummaryRef}>
                     <GovErrorSummary>
@@ -55,17 +52,24 @@ export default function SearchTemplate() {
                 <label className="govuk-label govuk-label--l" htmlFor={inputId}>
                     Find a court or tribunal
                 </label>
-                <GovInput
+                <div id={`${inputId}-hint`} className="govuk-hint">
+                    Enter the name of a court or tribunal, for example Manchester Crown Court
+                </div>
+                {error && (
+                    <GovFieldError id={errorId}>
+                        {error}
+                    </GovFieldError>
+                )}
+                <input
+                    className={`govuk-input ${error ? "govuk-input--error" : ""}`}
                     id={inputId}
                     name="search"
-                    hint="Enter the name of a court or tribunal, for example Manchester Crown Court"
-                    error={error}
-                    describedBy={error ? errorId : undefined}
+                    type="text"
+                    aria-describedby={error ? `${inputId}-hint ${errorId}` : `${inputId}-hint`}
+                    aria-invalid={error ? "true" : "false"}
                 />
             </div>
-            <GovButton type="submit">
-                Search
-            </GovButton>
+            <GovButton type="submit">Search</GovButton>
         </GovForm>
     );
 }
