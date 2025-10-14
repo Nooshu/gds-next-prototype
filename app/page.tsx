@@ -3,6 +3,10 @@ import GovContainer from "@/components/govuk/GovContainer";
 import { GovH1 } from "@/components/govuk/GovHeading";
 import SearchTemplate from "@/templates/SearchTemplate";
 
+export const metadata = {
+    title: "Find a court or tribunal",
+};
+
 interface HomePageProps {
     searchParams?: { error?: string };
 }

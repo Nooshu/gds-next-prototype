@@ -4,6 +4,7 @@ import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
 import Link from "next/link";
+import { Metadata } from "next";
 
 interface Court {
     slug: string;
@@ -18,6 +19,16 @@ interface SearchParams {
 
 interface ResultsPageProps {
     searchParams: SearchParams;
+}
+
+export async function generateMetadata({
+    searchParams,
+}: ResultsPageProps): Promise<Metadata> {
+    const query = searchParams.q || "";
+    const title = query ? `Results for "${query}"` : "Search results";
+    return {
+        title,
+    };
 }
 
 async function getCourts(): Promise<Court[]> {

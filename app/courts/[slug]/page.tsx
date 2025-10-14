@@ -5,6 +5,7 @@ import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
 import Link from "next/link";
 import FocusOnRender from "@/components/a11y/FocusOnRender";
 import GovBreadcrumbs from "@/components/govuk/GovBreadcrumbs";
+import { Metadata } from "next";
 
 interface Court {
     slug: string;
@@ -54,6 +55,13 @@ export async function generateStaticParams() {
     return courts.default.map((court: { slug: string }) => ({
         slug: court.slug,
     }));
+}
+
+export async function generateMetadata({ params }: CourtPageProps): Promise<Metadata> {
+    const court = await getCourt(params.slug);
+    return {
+        title: court ? court.name : "Court details",
+    };
 }
 
 export default async function CourtPage({ params }: CourtPageProps) {
