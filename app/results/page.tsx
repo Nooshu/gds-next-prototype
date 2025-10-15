@@ -61,6 +61,7 @@ async function ResultsContent({ query }: { query: string }) {
                 aria-live="polite"
                 aria-atomic="true"
                 className="govuk-visually-hidden"
+                key={`results-${query}`}
             >
                 {filteredCourts.length} results found for "{query}"
             </div>
