@@ -1,5 +1,6 @@
 import "./styles/global.scss";
 import type { Metadata } from "next";
+import { GovFooter } from "@/components/govuk/GovFooter";
 
 export const metadata: Metadata = {
     title: {
@@ -22,6 +23,7 @@ export default function RootLayout({
                     Skip to main content
                 </a>
                 {children}
+                <GovFooter />
                 <div
                     aria-live="polite"
                     aria-atomic="true"

@@ -3,6 +3,7 @@ import FocusOnRender from "@/components/a11y/FocusOnRender";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
+import { GovParagraph } from "@/components/govuk/GovParagraph";
 import Link from "next/link";
 import { Metadata } from "next";
 
@@ -114,18 +115,18 @@ export default function ResultsPage({ searchParams }: ResultsPageProps) {
                     <GovH1>Search results</GovH1>
                     {query && (
                         <>
-                            <p className="govuk-body">
+                            <GovParagraph>
                                 Results for: <strong>"{query}"</strong>
-                            </p>
+                            </GovParagraph>
                             <ResultsList query={query} />
                         </>
                     )}
                     {!query && (
                         <div className="govuk-inset-text">
-                            <p>
+                            <GovParagraph>
                                 Please enter a search term to find courts and
                                 tribunals.
-                            </p>
+                            </GovParagraph>
                         </div>
                     )}
                 </GovContainer>
