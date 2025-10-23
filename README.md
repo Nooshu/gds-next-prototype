@@ -29,6 +29,9 @@ Thin React wrappers around GOV.UK Frontend components:
 -   `GovHeader` - Service header with GOV.UK branding
 -   `GovContainer` - Width container for consistent layout
 -   `GovHeading` - H1/H2 headings with GOV.UK styling
+-   `GovForm`, `GovInput`, `GovButton` - Form components with accessibility features
+-   `GovFooter`, `GovParagraph` - Layout and content components
+-   `GovErrorSummary`, `GovFieldError` - Error handling components
 -   `SearchTemplate` - Client component with form validation
 
 ### Pages
@@ -75,6 +78,8 @@ npm start
 -   **Accessibility**: Skip links, live regions, semantic HTML, keyboard navigation
 -   **Type Safety**: Full TypeScript coverage with proper interfaces
 -   **Static Generation**: Court pages pre-generated at build time
+-   **Wrapper Library**: Minimal React components preserving GOV.UK semantics
+-   **Focus Management**: Deterministic focus on route changes and form errors
 
 ## GOV.UK Compliance
 
