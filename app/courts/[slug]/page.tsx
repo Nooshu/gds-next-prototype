@@ -57,7 +57,9 @@ export async function generateStaticParams() {
     }));
 }
 
-export async function generateMetadata({ params }: CourtPageProps): Promise<Metadata> {
+export async function generateMetadata({
+    params,
+}: CourtPageProps): Promise<Metadata> {
     const court = await getCourt(params.slug);
     return {
         title: court ? court.name : "Court details",

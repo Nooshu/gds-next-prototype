@@ -52,19 +52,20 @@ export default function SearchTemplate() {
                     Find a court or tribunal
                 </label>
                 <div id={`${inputId}-hint`} className="govuk-hint">
-                    Enter the name of a court or tribunal, for example Manchester Crown Court
+                    Enter the name of a court or tribunal, for example
+                    Manchester Crown Court
                 </div>
-                {error && (
-                    <GovFieldError id={errorId}>
-                        {error}
-                    </GovFieldError>
-                )}
+                {error && <GovFieldError id={errorId}>{error}</GovFieldError>}
                 <input
-                    className={`govuk-input ${error ? "govuk-input--error" : ""}`}
+                    className={`govuk-input ${
+                        error ? "govuk-input--error" : ""
+                    }`}
                     id={inputId}
                     name="search"
                     type="text"
-                    aria-describedby={error ? `${inputId}-hint ${errorId}` : `${inputId}-hint`}
+                    aria-describedby={
+                        error ? `${inputId}-hint ${errorId}` : `${inputId}-hint`
+                    }
                     aria-invalid={error ? "true" : "false"}
                 />
             </div>

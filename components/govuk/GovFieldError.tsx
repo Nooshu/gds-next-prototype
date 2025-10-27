@@ -5,7 +5,10 @@ interface GovFieldErrorProps {
     children: React.ReactNode;
 }
 
-export const GovFieldError: React.FC<GovFieldErrorProps> = ({ id, children }) => {
+export const GovFieldError: React.FC<GovFieldErrorProps> = ({
+    id,
+    children,
+}) => {
     return (
         <p id={id} className="govuk-error-message">
             <span className="govuk-visually-hidden">Error:</span>

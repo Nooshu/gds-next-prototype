@@ -5,12 +5,12 @@ interface GovFooterProps {
     className?: string;
 }
 
-export const GovFooter: React.FC<GovFooterProps> = ({ 
-    children, 
-    className = "" 
+export const GovFooter: React.FC<GovFooterProps> = ({
+    children,
+    className = "",
 }) => {
     return (
-        <footer 
+        <footer
             className={`govuk-footer ${className}`.trim()}
             role="contentinfo"
         >
@@ -18,7 +18,9 @@ export const GovFooter: React.FC<GovFooterProps> = ({
                 {children || (
                     <div className="govuk-footer__meta">
                         <div className="govuk-footer__meta-item govuk-footer__meta-item--grow">
-                            <h2 className="govuk-visually-hidden">Support links</h2>
+                            <h2 className="govuk-visually-hidden">
+                                Support links
+                            </h2>
                             <ul className="govuk-footer__inline-list">
                                 <li className="govuk-footer__inline-list-item">
                                     <a className="govuk-footer__link" href="#">
