@@ -75,6 +75,38 @@ This prototype includes automated testing tools for accessibility and performanc
 
 These tools enable comprehensive testing of GDS compliance requirements.
 
+## Testing
+
+This prototype includes comprehensive automated testing for accessibility and performance:
+
+### Automated Test Suites
+
+- **Accessibility Tests** (`tests/accessibility.spec.ts`): Skip links, page titles, landmarks, breadcrumbs, keyboard navigation, live regions
+- **Progressive Enhancement Tests** (`tests/progressive-enhancement.spec.ts`): Core functionality without JavaScript
+- **Focus Management Tests** (`tests/focus-management.spec.ts`): Deterministic focus behavior, error summary focus
+- **Form Tests** (`tests/forms.spec.ts`): Form validation, error handling, keyboard navigation
+
+### Running Tests
+
+```bash
+# Run all Playwright tests
+npm run test:automated:playwright
+
+# Run accessibility tests with axe-core
+npm run test:automated:axe
+
+# Run performance tests with Lighthouse
+npm run test:automated:lighthouse
+```
+
+### Test Results
+
+All tests validate GDS compliance requirements including:
+- WCAG 2.2 AA accessibility standards
+- Progressive enhancement (works without JavaScript)
+- Deterministic focus management
+- Proper form validation and error handling
+
 ## Build
 
 ```bash
