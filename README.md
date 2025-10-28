@@ -64,6 +64,17 @@ Mock court data stored in JSON files:
 
 3. Open [http://localhost:3000](http://localhost:3000)
 
+## Testing Dependencies
+
+This prototype includes automated testing tools for accessibility and performance:
+
+-   **@axe-core/puppeteer** - Automated accessibility testing
+-   **puppeteer** - Browser automation for axe-core
+-   **lighthouse** - Performance and accessibility auditing
+-   **chrome-launcher** - Chrome browser automation for Lighthouse
+
+These tools enable comprehensive testing of GDS compliance requirements.
+
 ## Build
 
 ```bash

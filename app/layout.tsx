@@ -1,5 +1,6 @@
 import "./styles/global.scss";
 import type { Metadata } from "next";
+import Script from "next/script";
 import { GovFooter } from "@/components/govuk/GovFooter";
 
 export const metadata: Metadata = {
@@ -24,12 +25,7 @@ export default function RootLayout({
                 </a>
                 {children}
                 <GovFooter />
-                <div
-                    aria-live="polite"
-                    aria-atomic="true"
-                    className="govuk-visually-hidden"
-                    id="live-region"
-                />
+                <Script src="/govuk-frontend.js" />
             </body>
         </html>
     );
