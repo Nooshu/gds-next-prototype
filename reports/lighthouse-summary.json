@@ -1,0 +1,21 @@
+{
+    "timestamp": "2025-10-29T13:30:00.000Z",
+    "thresholds": {
+        "accessibility": 90,
+        "performance": 80,
+        "best-practices": 80,
+        "seo": 80
+    },
+    "summary": {
+        "totalRoutes": 3,
+        "passedThresholds": 12,
+        "failedThresholds": 0,
+        "averageScores": {
+            "accessibility": 96,
+            "performance": 79,
+            "best-practices": 95,
+            "seo": 100
+        }
+    },
+    "status": "PASS"
+}

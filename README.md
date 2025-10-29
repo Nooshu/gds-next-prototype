@@ -81,10 +81,10 @@ This prototype includes comprehensive automated testing for accessibility and pe
 
 ### Automated Test Suites
 
-- **Accessibility Tests** (`tests/accessibility.spec.ts`): Skip links, page titles, landmarks, breadcrumbs, keyboard navigation, live regions
-- **Progressive Enhancement Tests** (`tests/progressive-enhancement.spec.ts`): Core functionality without JavaScript
-- **Focus Management Tests** (`tests/focus-management.spec.ts`): Deterministic focus behavior, error summary focus
-- **Form Tests** (`tests/forms.spec.ts`): Form validation, error handling, keyboard navigation
+-   **Accessibility Tests** (`tests/accessibility.spec.ts`): Skip links, page titles, landmarks, breadcrumbs, keyboard navigation, live regions
+-   **Progressive Enhancement Tests** (`tests/progressive-enhancement.spec.ts`): Core functionality without JavaScript
+-   **Focus Management Tests** (`tests/focus-management.spec.ts`): Deterministic focus behavior, error summary focus
+-   **Form Tests** (`tests/forms.spec.ts`): Form validation, error handling, keyboard navigation
 
 ### Running Tests
 
@@ -102,10 +102,11 @@ npm run test:automated:lighthouse
 ### Test Results
 
 All tests validate GDS compliance requirements including:
-- WCAG 2.2 AA accessibility standards
-- Progressive enhancement (works without JavaScript)
-- Deterministic focus management
-- Proper form validation and error handling
+
+-   WCAG 2.2 AA accessibility standards
+-   Progressive enhancement (works without JavaScript)
+-   Deterministic focus management
+-   Proper form validation and error handling
 
 ## Build
 
@@ -123,6 +124,12 @@ npm start
 -   **Static Generation**: Court pages pre-generated at build time
 -   **Wrapper Library**: Minimal React components preserving GOV.UK semantics
 -   **Focus Management**: Deterministic focus on route changes and form errors
+
+## Technology Choice and Trade-offs
+
+This prototype uses React + Next.js (SSR-first) with Progressive Enhancement to replicate FaCT journeys using the GOV.UK Design System. This approach is feasible and fully tested here (see TESTING_RESULTS.md), but it introduces additional complexity to achieve deterministic focus, skip-link behaviour, live-region announcements, and JS‑off flows.
+
+For a detailed comparison with a traditional server-rendered approach (Express/Nunjucks + GOV.UK Frontend), see `docs/ADR-0001-react-ssr-vs-server-rendered.md`.
 
 ## GOV.UK Compliance
 
