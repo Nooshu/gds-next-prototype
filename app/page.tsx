@@ -15,7 +15,12 @@ export default function Home({ searchParams }: HomePageProps) {
     return (
         <>
             <GovHeader serviceName="Find a court or tribunal" />
-            <main className="govuk-main-wrapper" id="main-content" role="main">
+            <main
+                className="govuk-main-wrapper"
+                id="main-content"
+                role="main"
+                tabIndex={-1}
+            >
                 <GovContainer>
                     <GovH1>Find a court or tribunal</GovH1>
                     {searchParams?.error && (

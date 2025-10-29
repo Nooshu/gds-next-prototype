@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useId, useRef } from "react";
+import { useState, useId, useRef, useEffect } from "react";
 import GovErrorSummary from "@/components/govuk/GovErrorSummary";
 import { GovForm } from "@/components/govuk/GovForm";
 import { GovButton } from "@/components/govuk/GovButton";
@@ -15,11 +15,25 @@ export default function SearchTemplate() {
     const errorSummaryRef = useRef<HTMLDivElement | null>(null);
 
     const focusErrorSummary = () => {
-        if (errorSummaryRef.current) {
-            errorSummaryRef.current.setAttribute("tabindex", "-1");
-            errorSummaryRef.current.focus();
+        // Find the actual error summary element within the ref
+        const errorSummaryElement = errorSummaryRef.current?.querySelector(
+            ".govuk-error-summary"
+        );
+        if (errorSummaryElement) {
+            errorSummaryElement.setAttribute("tabindex", "-1");
+            (errorSummaryElement as HTMLElement).focus();
         }
     };
+
+    // Focus error summary when error state changes
+    useEffect(() => {
+        if (error) {
+            const timeoutId = setTimeout(() => {
+                focusErrorSummary();
+            }, 200);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [error]);
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         if (typeof window === "undefined") return; // server fallback

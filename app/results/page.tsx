@@ -58,6 +58,7 @@ async function ResultsContent({ query }: { query: string }) {
     return (
         <>
             <div
+                id="live-region"
                 aria-live="polite"
                 aria-atomic="true"
                 className="govuk-visually-hidden"
@@ -111,7 +112,12 @@ export default function ResultsPage({ searchParams }: ResultsPageProps) {
         <>
             <FocusOnRender />
             <GovHeader serviceName="Find a court or tribunal" />
-            <main className="govuk-main-wrapper" id="main-content" role="main">
+            <main
+                className="govuk-main-wrapper"
+                id="main-content"
+                role="main"
+                tabIndex={-1}
+            >
                 <GovContainer>
                     <GovH1>Search results</GovH1>
                     {query && (

@@ -77,7 +77,12 @@ export default async function CourtPage({ params }: CourtPageProps) {
         <>
             <FocusOnRender />
             <GovHeader serviceName="Find a court or tribunal" />
-            <main className="govuk-main-wrapper" id="main-content" role="main">
+            <main
+                className="govuk-main-wrapper"
+                id="main-content"
+                role="main"
+                tabIndex={-1}
+            >
                 <GovContainer>
                     <GovBreadcrumbs
                         items={[
