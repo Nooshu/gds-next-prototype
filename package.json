@@ -10,32 +10,34 @@
         "lint": "next lint",
         "test:automated:axe": "node axe-test.cjs",
         "test:automated:lighthouse": "node lighthouse-test.cjs",
-        "test:automated:playwright": "npx playwright test"
+        "test:automated:playwright": "npx playwright test",
+        "verify:dependencies": "node scripts/verify-dependencies.mjs",
+        "verify:dependencies:verbose": "node scripts/verify-dependencies.mjs --verbose"
     },
     "dependencies": {
         "next": "14.2.33",
-        "react": "^18.2.0",
-        "react-dom": "^18.2.0",
-        "govuk-frontend": "^5.13.0",
-        "@ministryofjustice/frontend": "^7.1.0",
-        "sass": "^1.69.5"
+        "react": "18.3.1",
+        "react-dom": "18.3.1",
+        "govuk-frontend": "5.13.0",
+        "@ministryofjustice/frontend": "7.1.0",
+        "sass": "1.94.0"
     },
     "devDependencies": {
-        "typescript": "^5.3.3",
-        "@types/node": "^20.10.5",
-        "@types/react": "^18.2.45",
-        "@types/react-dom": "^18.2.18",
-        "eslint": "^8.57.1",
+        "typescript": "5.9.3",
+        "@types/node": "24.10.1",
+        "@types/react": "18.3.26",
+        "@types/react-dom": "18.3.7",
+        "eslint": "8.57.1",
         "eslint-config-next": "14.2.33",
-        "@axe-core/puppeteer": "^4.8.2",
-        "puppeteer": "^24.29.1",
-        "lighthouse": "^11.7.0",
-        "chrome-launcher": "^1.1.0"
+        "@axe-core/puppeteer": "4.11.0",
+        "puppeteer": "24.29.1",
+        "lighthouse": "13.0.1",
+        "chrome-launcher": "1.2.1"
     },
     "overrides": {
-        "rimraf": "^4.0.0",
-        "glob": "^10.0.0",
-        "@humanwhocodes/config-array": "npm:@eslint/config-array@^0.21.1",
-        "@humanwhocodes/object-schema": "npm:@eslint/object-schema@^2.1.7"
+        "rimraf": "6.1.0",
+        "glob": "11.0.3",
+        "@humanwhocodes/config-array": "npm:@eslint/config-array@0.21.1",
+        "@humanwhocodes/object-schema": "npm:@eslint/object-schema@2.1.7"
     }
 }
