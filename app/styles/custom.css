@@ -1,8 +1,4 @@
-@import "govuk-frontend/dist/govuk/index";
-@import "@ministryofjustice/frontend/moj/all";
-
-// Base body font and spacing come from GOV.UK Frontend
-
+/* Custom styles for reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -12,3 +8,4 @@
         scroll-behavior: auto !important;
     }
 }
+
