@@ -153,18 +153,18 @@ async function checkServer() {
 }
 
 async function main() {
-    console.log("Checking if development server is running...");
+    console.log("Checking if server is running...");
 
     const serverRunning = await checkServer();
     if (!serverRunning) {
         console.error(
-            "❌ Development server is not running at http://localhost:3000"
+            "❌ Server is not running at http://localhost:3000"
         );
-        console.error('Please run "npm run dev" first');
+        console.error('Please run "npm run build && npm start" first');
         process.exit(1);
     }
 
-    console.log("✅ Development server is running");
+    console.log("✅ Server is running");
     await runAxeTests();
 }
 

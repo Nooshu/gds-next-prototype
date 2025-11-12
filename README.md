@@ -56,11 +56,18 @@ Mock court data stored in JSON files:
     npm install
     ```
 
-2. Run development server:
+2. Build and start the server:
 
     ```bash
-    npm run dev
+    # Recommended: Auto-build if needed then start (handles missing builds automatically)
+    npm run start:safe
+
+    # Alternative: Manual build then start (requires build to exist)
+    npm run build
+    npm start
     ```
+
+    **Note**: `npm start` requires a build to exist. Use `npm run start:safe` to automatically build if needed.
 
 3. Open [http://localhost:3000](http://localhost:3000)
 
@@ -111,8 +118,14 @@ All tests validate GDS compliance requirements including:
 ## Build
 
 ```bash
+# Build the application
 npm run build
+
+# Start production server (requires build to exist)
 npm start
+
+# Or use the safe start command (auto-builds if needed)
+npm run start:safe
 ```
 
 ## Key Implementation Notes
