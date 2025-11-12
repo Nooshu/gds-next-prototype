@@ -13,7 +13,7 @@
         "test:automated:playwright": "npx playwright test"
     },
     "dependencies": {
-        "next": "14.0.4",
+        "next": "14.2.33",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "govuk-frontend": "^5.13.0",
@@ -25,11 +25,17 @@
         "@types/node": "^20.10.5",
         "@types/react": "^18.2.45",
         "@types/react-dom": "^18.2.18",
-        "eslint": "^8.56.0",
-        "eslint-config-next": "14.0.4",
+        "eslint": "^8.57.1",
+        "eslint-config-next": "14.2.33",
         "@axe-core/puppeteer": "^4.8.2",
-        "puppeteer": "^21.6.1",
+        "puppeteer": "^24.29.1",
         "lighthouse": "^11.7.0",
         "chrome-launcher": "^1.1.0"
+    },
+    "overrides": {
+        "rimraf": "^4.0.0",
+        "glob": "^10.0.0",
+        "@humanwhocodes/config-array": "npm:@eslint/config-array@^0.21.1",
+        "@humanwhocodes/object-schema": "npm:@eslint/object-schema@^2.1.7"
     }
 }
