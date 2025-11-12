@@ -1,1790 +1,446 @@
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
-  typeof define === 'function' && define.amd ? define('GOVUKFrontend', ['exports'], factory) :
-  (factory((global.GOVUKFrontend = {})));
-}(this, (function (exports) { 'use strict';
+  typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.GOVUKFrontend = global.GOVUKFrontend || {}));
+})(this, (function (exports) { 'use strict';
 
-  /*
-   * This variable is automatically overwritten during builds and releases.
-   * It doesn't need to be updated manually.
-   */
+  const version = '5.13.0';
 
-  var version = '4.10.1';
-
-  /**
-   * Common helpers which do not require polyfill.
-   *
-   * IMPORTANT: If a helper require a polyfill, please isolate it in its own module
-   * so that the polyfill can be properly tree-shaken and does not burden
-   * the components that do not need that helper
-   *
-   * @module common/index
-   */
-
-  /**
-   * TODO: Ideally this would be a NodeList.prototype.forEach polyfill
-   * This seems to fail in IE8, requires more investigation.
-   * See: https://github.com/imagitama/nodelist-foreach-polyfill
-   *
-   * @deprecated Will be made private in v5.0
-   * @template {Node} ElementType
-   * @param {NodeListOf<ElementType>} nodes - NodeList from querySelectorAll()
-   * @param {nodeListIterator<ElementType>} callback - Callback function to run for each node
-   * @returns {void}
-   */
-  function nodeListForEach (nodes, callback) {
-    if (window.NodeList.prototype.forEach) {
-      return nodes.forEach(callback)
+  function getBreakpoint(name) {
+    const property = `--govuk-breakpoint-${name}`;
+    const value = window.getComputedStyle(document.documentElement).getPropertyValue(property);
+    return {
+      property,
+      value: value || undefined
+    };
+  }
+  function setFocus($element, options = {}) {
+    var _options$onBeforeFocu;
+    const isFocusable = $element.getAttribute('tabindex');
+    if (!isFocusable) {
+      $element.setAttribute('tabindex', '-1');
     }
-    for (var i = 0; i < nodes.length; i++) {
-      callback.call(window, nodes[i], i, nodes);
+    function onFocus() {
+      $element.addEventListener('blur', onBlur, {
+        once: true
+      });
     }
+    function onBlur() {
+      var _options$onBlur;
+      (_options$onBlur = options.onBlur) == null || _options$onBlur.call($element);
+      if (!isFocusable) {
+        $element.removeAttribute('tabindex');
+      }
+    }
+    $element.addEventListener('focus', onFocus, {
+      once: true
+    });
+    (_options$onBeforeFocu = options.onBeforeFocus) == null || _options$onBeforeFocu.call($element);
+    $element.focus();
+  }
+  function isInitialised($root, moduleName) {
+    return $root instanceof HTMLElement && $root.hasAttribute(`data-${moduleName}-init`);
   }
 
   /**
-   * Used to generate a unique string, allows multiple instances of the component
-   * without them conflicting with each other.
-   * https://stackoverflow.com/a/8809472
+   * Checks if GOV.UK Frontend is supported on this page
    *
-   * @deprecated Will be made private in v5.0
-   * @returns {string} Unique ID
+   * Some browsers will load and run our JavaScript but GOV.UK Frontend
+   * won't be supported.
+   *
+   * @param {HTMLElement | null} [$scope] - (internal) `<body>` HTML element checked for browser support
+   * @returns {boolean} Whether GOV.UK Frontend is supported on this page
    */
-  function generateUniqueID () {
-    var d = new Date().getTime();
-    if (typeof window.performance !== 'undefined' && typeof window.performance.now === 'function') {
-      d += window.performance.now(); // use high-precision timer if available
+  function isSupported($scope = document.body) {
+    if (!$scope) {
+      return false;
     }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      var r = (d + Math.random() * 16) % 16 | 0;
-      d = Math.floor(d / 16);
-      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
-    })
+    return $scope.classList.contains('govuk-frontend-supported');
   }
-
+  function isArray(option) {
+    return Array.isArray(option);
+  }
+  function isObject(option) {
+    return !!option && typeof option === 'object' && !isArray(option);
+  }
+  function isScope($scope) {
+    return !!$scope && ($scope instanceof Element || $scope instanceof Document);
+  }
+  function formatErrorMessage(Component, message) {
+    return `${Component.moduleName}: ${message}`;
+  }
   /**
-   * Config flattening function
-   *
-   * Takes any number of objects, flattens them into namespaced key-value pairs,
-   * (e.g. {'i18n.showSection': 'Show section'}) and combines them together, with
-   * greatest priority on the LAST item passed in.
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {Object<string, unknown>} A flattened object of key-value pairs.
+   * @typedef ComponentWithModuleName
+   * @property {string} moduleName - Name of the component
    */
-  function mergeConfigs (/* configObject1, configObject2, ...configObjects */) {
+
+  class GOVUKFrontendError extends Error {
+    constructor(...args) {
+      super(...args);
+      this.name = 'GOVUKFrontendError';
+    }
+  }
+  class SupportError extends GOVUKFrontendError {
     /**
-     * Function to take nested objects and flatten them to a dot-separated keyed
-     * object. Doing this means we don't need to do any deep/recursive merging of
-     * each of our objects, nor transform our dataset from a flat list into a
-     * nested object.
+     * Checks if GOV.UK Frontend is supported on this page
      *
-     * @param {Object<string, unknown>} configObject - Deeply nested object
-     * @returns {Object<string, unknown>} Flattened object with dot-separated keys
+     * @param {HTMLElement | null} [$scope] - HTML element `<body>` checked for browser support
      */
-    var flattenObject = function (configObject) {
-      // Prepare an empty return object
-      /** @type {Object<string, unknown>} */
-      var flattenedObject = {};
-
-      /**
-       * Our flattening function, this is called recursively for each level of
-       * depth in the object. At each level we prepend the previous level names to
-       * the key using `prefix`.
-       *
-       * @param {Partial<Object<string, unknown>>} obj - Object to flatten
-       * @param {string} [prefix] - Optional dot-separated prefix
-       */
-      var flattenLoop = function (obj, prefix) {
-        // Loop through keys...
-        for (var key in obj) {
-          // Check to see if this is a prototypical key/value,
-          // if it is, skip it.
-          if (!Object.prototype.hasOwnProperty.call(obj, key)) {
-            continue
-          }
-          var value = obj[key];
-          var prefixedKey = prefix ? prefix + '.' + key : key;
-          if (typeof value === 'object') {
-            // If the value is a nested object, recurse over that too
-            flattenLoop(value, prefixedKey);
-          } else {
-            // Otherwise, add this value to our return object
-            flattenedObject[prefixedKey] = value;
-          }
-        }
-      };
-
-      // Kick off the recursive loop
-      flattenLoop(configObject);
-      return flattenedObject
-    };
-
-    // Start with an empty object as our base
-    /** @type {Object<string, unknown>} */
-    var formattedConfigObject = {};
-
-    // Loop through each of the remaining passed objects and push their keys
-    // one-by-one into configObject. Any duplicate keys will override the existing
-    // key with the new value.
-    for (var i = 0; i < arguments.length; i++) {
-      var obj = flattenObject(arguments[i]);
-      for (var key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          formattedConfigObject[key] = obj[key];
+    constructor($scope = document.body) {
+      const supportMessage = 'noModule' in HTMLScriptElement.prototype ? 'GOV.UK Frontend initialised without `<body class="govuk-frontend-supported">` from template `<script>` snippet' : 'GOV.UK Frontend is not supported in this browser';
+      super($scope ? supportMessage : 'GOV.UK Frontend initialised without `<script type="module">`');
+      this.name = 'SupportError';
+    }
+  }
+  class ConfigError extends GOVUKFrontendError {
+    constructor(...args) {
+      super(...args);
+      this.name = 'ConfigError';
+    }
+  }
+  class ElementError extends GOVUKFrontendError {
+    constructor(messageOrOptions) {
+      let message = typeof messageOrOptions === 'string' ? messageOrOptions : '';
+      if (isObject(messageOrOptions)) {
+        const {
+          component,
+          identifier,
+          element,
+          expectedType
+        } = messageOrOptions;
+        message = identifier;
+        message += element ? ` is not of type ${expectedType != null ? expectedType : 'HTMLElement'}` : ' not found';
+        if (component) {
+          message = formatErrorMessage(component, message);
         }
       }
+      super(message);
+      this.name = 'ElementError';
     }
-
-    return formattedConfigObject
   }
-
+  class InitError extends GOVUKFrontendError {
+    constructor(componentOrMessage) {
+      const message = typeof componentOrMessage === 'string' ? componentOrMessage : formatErrorMessage(componentOrMessage, `Root element (\`$root\`) already initialised`);
+      super(message);
+      this.name = 'InitError';
+    }
+  }
   /**
-   * Extracts keys starting with a particular namespace from a flattened config
-   * object, removing the namespace in the process.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Object<string, unknown>} configObject - The object to extract key-value pairs from.
-   * @param {string} namespace - The namespace to filter keys with.
-   * @returns {Object<string, unknown>} Flattened object with dot-separated key namespace removed
-   * @throws {Error} Config object required
-   * @throws {Error} Namespace string required
+   * @import { ComponentWithModuleName } from '../common/index.mjs'
    */
-  function extractConfigByNamespace (configObject, namespace) {
-    // Check we have what we need
-    if (!configObject || typeof configObject !== 'object') {
-      throw new Error('Provide a `configObject` of type "object".')
+
+  class Component {
+    /**
+     * Returns the root element of the component
+     *
+     * @protected
+     * @returns {RootElementType} - the root element of component
+     */
+    get $root() {
+      return this._$root;
     }
-
-    if (!namespace || typeof namespace !== 'string') {
-      throw new Error('Provide a `namespace` of type "string" to filter the `configObject` by.')
-    }
-
-    /** @type {Object<string, unknown>} */
-    var newObject = {};
-
-    for (var key in configObject) {
-      // Split the key into parts, using . as our namespace separator
-      var keyParts = key.split('.');
-      // Check if the first namespace matches the configured namespace
-      if (Object.prototype.hasOwnProperty.call(configObject, key) && keyParts[0] === namespace) {
-        // Remove the first item (the namespace) from the parts array,
-        // but only if there is more than one part (we don't want blank keys!)
-        if (keyParts.length > 1) {
-          keyParts.shift();
-        }
-        // Join the remaining parts back together
-        var newKey = keyParts.join('.');
-        // Add them to our new object
-        newObject[newKey] = configObject[key];
+    constructor($root) {
+      this._$root = void 0;
+      const childConstructor = this.constructor;
+      if (typeof childConstructor.moduleName !== 'string') {
+        throw new InitError(`\`moduleName\` not defined in component`);
       }
-    }
-    return newObject
-  }
-
-  /**
-   * @template {Node} ElementType
-   * @callback nodeListIterator
-   * @param {ElementType} value - The current node being iterated on
-   * @param {number} index - The current index in the iteration
-   * @param {NodeListOf<ElementType>} nodes - NodeList from querySelectorAll()
-   * @returns {void}
-   */
-
-  // @ts-nocheck
-  (function (undefined) {
-
-  var detect = (
-    // In IE8, defineProperty could only act on DOM elements, so full support
-    // for the feature requires the ability to set a property on an arbitrary object
-    'defineProperty' in Object && (function() {
-    	try {
-    		var a = {};
-    		Object.defineProperty(a, 'test', {value:42});
-    		return true;
-    	} catch(e) {
-    		return false
-    	}
-    }())
-  );
-
-  if (detect) return
-
-  (function (nativeDefineProperty) {
-
-  	var supportsAccessors = Object.prototype.hasOwnProperty('__defineGetter__');
-  	var ERR_ACCESSORS_NOT_SUPPORTED = 'Getters & setters cannot be defined on this javascript engine';
-  	var ERR_VALUE_ACCESSORS = 'A property cannot both have accessors and be writable or have a value';
-
-  	Object.defineProperty = function defineProperty(object, property, descriptor) {
-
-  		// Where native support exists, assume it
-  		if (nativeDefineProperty && (object === window || object === document || object === Element.prototype || object instanceof Element)) {
-  			return nativeDefineProperty(object, property, descriptor);
-  		}
-
-  		if (object === null || !(object instanceof Object || typeof object === 'object')) {
-  			throw new TypeError('Object.defineProperty called on non-object');
-  		}
-
-  		if (!(descriptor instanceof Object)) {
-  			throw new TypeError('Property description must be an object');
-  		}
-
-  		var propertyString = String(property);
-  		var hasValueOrWritable = 'value' in descriptor || 'writable' in descriptor;
-  		var getterType = 'get' in descriptor && typeof descriptor.get;
-  		var setterType = 'set' in descriptor && typeof descriptor.set;
-
-  		// handle descriptor.get
-  		if (getterType) {
-  			if (getterType !== 'function') {
-  				throw new TypeError('Getter must be a function');
-  			}
-  			if (!supportsAccessors) {
-  				throw new TypeError(ERR_ACCESSORS_NOT_SUPPORTED);
-  			}
-  			if (hasValueOrWritable) {
-  				throw new TypeError(ERR_VALUE_ACCESSORS);
-  			}
-  			Object.__defineGetter__.call(object, propertyString, descriptor.get);
-  		} else {
-  			object[propertyString] = descriptor.value;
-  		}
-
-  		// handle descriptor.set
-  		if (setterType) {
-  			if (setterType !== 'function') {
-  				throw new TypeError('Setter must be a function');
-  			}
-  			if (!supportsAccessors) {
-  				throw new TypeError(ERR_ACCESSORS_NOT_SUPPORTED);
-  			}
-  			if (hasValueOrWritable) {
-  				throw new TypeError(ERR_VALUE_ACCESSORS);
-  			}
-  			Object.__defineSetter__.call(object, propertyString, descriptor.set);
-  		}
-
-  		// OK to define value unconditionally - if a getter has been specified as well, an error would be thrown above
-  		if ('value' in descriptor) {
-  			object[propertyString] = descriptor.value;
-  		}
-
-  		return object;
-  	};
-  }(Object.defineProperty));
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-  (function (undefined) {
-
-  var detect = ("Document" in this);
-
-  if (detect) return
-
-  if ((typeof WorkerGlobalScope === "undefined") && (typeof importScripts !== "function")) {
-
-  	if (this.HTMLDocument) { // IE8
-
-  		// HTMLDocument is an extension of Document.  If the browser has HTMLDocument but not Document, the former will suffice as an alias for the latter.
-  		this.Document = this.HTMLDocument;
-
-  	} else {
-
-  		// Create an empty function to act as the missing constructor for the document object, attach the document object as its prototype.  The function needs to be anonymous else it is hoisted and causes the feature detect to prematurely pass, preventing the assignments below being made.
-  		this.Document = this.HTMLDocument = document.constructor = (new Function('return function Document() {}')());
-  		this.Document.prototype = document;
-  	}
-  }
-
-
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-  var detect = ('Element' in this && 'HTMLElement' in this);
-
-  if (detect) return
-
-  (function () {
-
-  	// IE8
-  	if (window.Element && !window.HTMLElement) {
-  		window.HTMLElement = window.Element;
-  		return;
-  	}
-
-  	// create Element constructor
-  	window.Element = window.HTMLElement = new Function('return function Element() {}')();
-
-  	// generate sandboxed iframe
-  	var vbody = document.appendChild(document.createElement('body'));
-  	var frame = vbody.appendChild(document.createElement('iframe'));
-
-  	// use sandboxed iframe to replicate Element functionality
-  	var frameDocument = frame.contentWindow.document;
-  	var prototype = Element.prototype = frameDocument.appendChild(frameDocument.createElement('*'));
-  	var cache = {};
-
-  	// polyfill Element.prototype on an element
-  	var shiv = function (element, deep) {
-  		var
-  		childNodes = element.childNodes || [],
-  		index = -1,
-  		key, value, childNode;
-
-  		if (element.nodeType === 1 && element.constructor !== Element) {
-  			element.constructor = Element;
-
-  			for (key in cache) {
-  				value = cache[key];
-  				element[key] = value;
-  			}
-  		}
-
-  		while (childNode = deep && childNodes[++index]) {
-  			shiv(childNode, deep);
-  		}
-
-  		return element;
-  	};
-
-  	var elements = document.getElementsByTagName('*');
-  	var nativeCreateElement = document.createElement;
-  	var interval;
-  	var loopLimit = 100;
-
-  	prototype.attachEvent('onpropertychange', function (event) {
-  		var
-  		propertyName = event.propertyName,
-  		nonValue = !cache.hasOwnProperty(propertyName),
-  		newValue = prototype[propertyName],
-  		oldValue = cache[propertyName],
-  		index = -1,
-  		element;
-
-  		while (element = elements[++index]) {
-  			if (element.nodeType === 1) {
-  				if (nonValue || element[propertyName] === oldValue) {
-  					element[propertyName] = newValue;
-  				}
-  			}
-  		}
-
-  		cache[propertyName] = newValue;
-  	});
-
-  	prototype.constructor = Element;
-
-  	if (!prototype.hasAttribute) {
-  		// <Element>.hasAttribute
-  		prototype.hasAttribute = function hasAttribute(name) {
-  			return this.getAttribute(name) !== null;
-  		};
-  	}
-
-  	// Apply Element prototype to the pre-existing DOM as soon as the body element appears.
-  	function bodyCheck() {
-  		if (!(loopLimit--)) clearTimeout(interval);
-  		if (document.body && !document.body.prototype && /(complete|interactive)/.test(document.readyState)) {
-  			shiv(document, true);
-  			if (interval && document.body.prototype) clearTimeout(interval);
-  			return (!!document.body.prototype);
-  		}
-  		return false;
-  	}
-  	if (!bodyCheck()) {
-  		document.onreadystatechange = bodyCheck;
-  		interval = setInterval(bodyCheck, 25);
-  	}
-
-  	// Apply to any new elements created after load
-  	document.createElement = function createElement(nodeName) {
-  		var element = nativeCreateElement(String(nodeName).toLowerCase());
-  		return shiv(element);
-  	};
-
-  	// remove sandboxed iframe
-  	document.removeChild(vbody);
-  }());
-
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-    var detect = (function(){
-      if (!document.documentElement.dataset) {
-        return false;
-      }
-      var el = document.createElement('div');
-      el.setAttribute("data-a-b", "c");
-      return el.dataset && el.dataset.aB == "c";
-    }());
-
-    if (detect) return
-
-    Object.defineProperty(Element.prototype, 'dataset', {
-      get: function() {
-        var element = this;
-        var attributes = this.attributes;
-        var map = {};
-
-        for (var i = 0; i < attributes.length; i++) {
-          var attribute = attributes[i];
-
-          // This regex has been edited from the original polyfill, to add
-          // support for period (.) separators in data-* attribute names. These
-          // are allowed in the HTML spec, but were not covered by the original
-          // polyfill's regex. We use periods in our i18n implementation.
-          if (attribute && attribute.name && (/^data-\w[.\w-]*$/).test(attribute.name)) {
-            var name = attribute.name;
-            var value = attribute.value;
-
-            var propName = name.substr(5).replace(/-./g, function (prop) {
-              return prop.charAt(1).toUpperCase();
-            });
-
-            // If this browser supports __defineGetter__ and __defineSetter__,
-            // continue using defineProperty. If not (like IE 8 and below), we use
-            // a hacky fallback which at least gives an object in the right format
-            if ('__defineGetter__' in Object.prototype && '__defineSetter__' in Object.prototype) {
-              Object.defineProperty(map, propName, {
-                enumerable: true,
-                get: function() {
-                  return this.value;
-                }.bind({value: value || ''}),
-                set: function setter(name, value) {
-                  if (typeof value !== 'undefined') {
-                    this.setAttribute(name, value);
-                  } else {
-                    this.removeAttribute(name);
-                  }
-                }.bind(element, name)
-              });
-            } else {
-              map[propName] = value;
-            }
-
-          }
-        }
-
-        return map;
-      }
-    });
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-  (function (undefined) {
-
-      var detect = ('trim' in String.prototype);
-
-      if (detect) return
-
-      String.prototype.trim = function () {
-          return this.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, '');
-      };
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  /* eslint-disable es-x/no-string-prototype-trim -- Polyfill imported */
-
-  /**
-   * Normalise string
-   *
-   * 'If it looks like a duck, and it quacks like a duck…' 🦆
-   *
-   * If the passed value looks like a boolean or a number, convert it to a boolean
-   * or number.
-   *
-   * Designed to be used to convert config passed via data attributes (which are
-   * always strings) into something sensible.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {string} value - The value to normalise
-   * @returns {string | boolean | number | undefined} Normalised data
-   */
-  function normaliseString (value) {
-    if (typeof value !== 'string') {
-      return value
-    }
-
-    var trimmedValue = value.trim();
-
-    if (trimmedValue === 'true') {
-      return true
-    }
-
-    if (trimmedValue === 'false') {
-      return false
-    }
-
-    // Empty / whitespace-only strings are considered finite so we need to check
-    // the length of the trimmed string as well
-    if (trimmedValue.length > 0 && isFinite(Number(trimmedValue))) {
-      return Number(trimmedValue)
-    }
-
-    return value
-  }
-
-  /**
-   * Normalise dataset
-   *
-   * Loop over an object and normalise each value using normaliseData function
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {DOMStringMap} dataset - HTML element dataset
-   * @returns {Object<string, unknown>} Normalised dataset
-   */
-  function normaliseDataset (dataset) {
-    /** @type {Object<string, unknown>} */
-    var out = {};
-
-    for (var key in dataset) {
-      out[key] = normaliseString(dataset[key]);
-    }
-
-    return out
-  }
-
-  /**
-   * Internal support for selecting messages to render, with placeholder
-   * interpolation and locale-aware number formatting and pluralisation
-   *
-   * @class
-   * @private
-   * @param {Object<string, unknown>} translations - Key-value pairs of the translation strings to use.
-   * @param {object} [config] - Configuration options for the function.
-   * @param {string} [config.locale] - An overriding locale for the PluralRules functionality.
-   */
-  function I18n (translations, config) {
-    // Make list of translations available throughout function
-    this.translations = translations || {};
-
-    // The locale to use for PluralRules and NumberFormat
-    this.locale = (config && config.locale) || document.documentElement.lang || 'en';
-  }
-
-  /**
-   * The most used function - takes the key for a given piece of UI text and
-   * returns the appropriate string.
-   *
-   * @param {string} lookupKey - The lookup key of the string to use.
-   * @param {Object<string, unknown>} [options] - Any options passed with the translation string, e.g: for string interpolation.
-   * @returns {string} The appropriate translation string.
-   * @throws {Error} Lookup key required
-   * @throws {Error} Options required for `${}` placeholders
-   */
-  I18n.prototype.t = function (lookupKey, options) {
-    if (!lookupKey) {
-      // Print a console error if no lookup key has been provided
-      throw new Error('i18n: lookup key missing')
-    }
-
-    // If the `count` option is set, determine which plural suffix is needed and
-    // change the lookupKey to match. We check to see if it's numeric instead of
-    // falsy, as this could legitimately be 0.
-    if (options && typeof options.count === 'number') {
-      // Get the plural suffix
-      lookupKey = lookupKey + '.' + this.getPluralSuffix(lookupKey, options.count);
-    }
-
-    // Fetch the translation string for that lookup key
-    var translationString = this.translations[lookupKey];
-
-    if (typeof translationString === 'string') {
-      // Check for ${} placeholders in the translation string
-      if (translationString.match(/%{(.\S+)}/)) {
-        if (!options) {
-          throw new Error('i18n: cannot replace placeholders in string if no option data provided')
-        }
-
-        return this.replacePlaceholders(translationString, options)
+      if (!($root instanceof childConstructor.elementType)) {
+        throw new ElementError({
+          element: $root,
+          component: childConstructor,
+          identifier: 'Root element (`$root`)',
+          expectedType: childConstructor.elementType.name
+        });
       } else {
-        return translationString
+        this._$root = $root;
       }
-    } else {
-      // If the key wasn't found in our translations object,
-      // return the lookup key itself as the fallback
-      return lookupKey
+      childConstructor.checkSupport();
+      this.checkInitialised();
+      const moduleName = childConstructor.moduleName;
+      this.$root.setAttribute(`data-${moduleName}-init`, '');
     }
-  };
-
-  /**
-   * Takes a translation string with placeholders, and replaces the placeholders
-   * with the provided data
-   *
-   * @param {string} translationString - The translation string
-   * @param {Object<string, unknown>} options - Any options passed with the translation string, e.g: for string interpolation.
-   * @returns {string} The translation string to output, with ${} placeholders replaced
-   */
-  I18n.prototype.replacePlaceholders = function (translationString, options) {
-    /** @type {Intl.NumberFormat | undefined} */
-    var formatter;
-
-    if (this.hasIntlNumberFormatSupport()) {
-      formatter = new Intl.NumberFormat(this.locale);
-    }
-
-    return translationString.replace(
-      /%{(.\S+)}/g,
-
-      /**
-       * Replace translation string placeholders
-       *
-       * @param {string} placeholderWithBraces - Placeholder with braces
-       * @param {string} placeholderKey - Placeholder key
-       * @returns {string} Placeholder value
-       */
-      function (placeholderWithBraces, placeholderKey) {
-        if (Object.prototype.hasOwnProperty.call(options, placeholderKey)) {
-          var placeholderValue = options[placeholderKey];
-
-          // If a user has passed `false` as the value for the placeholder
-          // treat it as though the value should not be displayed
-          if (placeholderValue === false || (
-            typeof placeholderValue !== 'number' &&
-            typeof placeholderValue !== 'string')
-          ) {
-            return ''
-          }
-
-          // If the placeholder's value is a number, localise the number formatting
-          if (typeof placeholderValue === 'number') {
-            return formatter ? formatter.format(placeholderValue) : placeholderValue.toString()
-          }
-
-          return placeholderValue
-        } else {
-          throw new Error('i18n: no data found to replace ' + placeholderWithBraces + ' placeholder in string')
-        }
-      })
-  };
-
-  /**
-   * Check to see if the browser supports Intl and Intl.PluralRules.
-   *
-   * It requires all conditions to be met in order to be supported:
-   * - The browser supports the Intl class (true in IE11)
-   * - The implementation of Intl supports PluralRules (NOT true in IE11)
-   * - The browser/OS has plural rules for the current locale (browser dependent)
-   *
-   * @returns {boolean} Returns true if all conditions are met. Returns false otherwise.
-   */
-  I18n.prototype.hasIntlPluralRulesSupport = function () {
-    return Boolean(window.Intl && ('PluralRules' in window.Intl && Intl.PluralRules.supportedLocalesOf(this.locale).length))
-  };
-
-  /**
-   * Check to see if the browser supports Intl and Intl.NumberFormat.
-   *
-   * It requires all conditions to be met in order to be supported:
-   * - The browser supports the Intl class (true in IE11)
-   * - The implementation of Intl supports NumberFormat (also true in IE11)
-   * - The browser/OS has number formatting rules for the current locale (browser dependent)
-   *
-   * @returns {boolean} Returns true if all conditions are met. Returns false otherwise.
-   */
-  I18n.prototype.hasIntlNumberFormatSupport = function () {
-    return Boolean(window.Intl && ('NumberFormat' in window.Intl && Intl.NumberFormat.supportedLocalesOf(this.locale).length))
-  };
-
-  /**
-   * Get the appropriate suffix for the plural form.
-   *
-   * Uses Intl.PluralRules (or our own fallback implementation) to get the
-   * 'preferred' form to use for the given count.
-   *
-   * Checks that a translation has been provided for that plural form – if it
-   * hasn't, it'll fall back to the 'other' plural form (unless that doesn't exist
-   * either, in which case an error will be thrown)
-   *
-   * @param {string} lookupKey - The lookup key of the string to use.
-   * @param {number} count - Number used to determine which pluralisation to use.
-   * @returns {PluralRule} The suffix associated with the correct pluralisation for this locale.
-   * @throws {Error} Plural form `.other` required when preferred plural form is missing
-   */
-  I18n.prototype.getPluralSuffix = function (lookupKey, count) {
-    // Validate that the number is actually a number.
-    //
-    // Number(count) will turn anything that can't be converted to a Number type
-    // into 'NaN'. isFinite filters out NaN, as it isn't a finite number.
-    count = Number(count);
-    if (!isFinite(count)) { return 'other' }
-
-    var preferredForm;
-
-    // Check to verify that all the requirements for Intl.PluralRules are met.
-    // If so, we can use that instead of our custom implementation. Otherwise,
-    // use the hardcoded fallback.
-    if (this.hasIntlPluralRulesSupport()) {
-      preferredForm = new Intl.PluralRules(this.locale).select(count);
-    } else {
-      preferredForm = this.selectPluralFormUsingFallbackRules(count);
-    }
-
-    // Use the correct plural form if provided
-    if (lookupKey + '.' + preferredForm in this.translations) {
-      return preferredForm
-    // Fall back to `other` if the plural form is missing, but log a warning
-    // to the console
-    } else if (lookupKey + '.other' in this.translations) {
-      if (console && 'warn' in console) {
-        console.warn('i18n: Missing plural form ".' + preferredForm + '" for "' +
-          this.locale + '" locale. Falling back to ".other".');
-      }
-
-      return 'other'
-    // If the required `other` plural form is missing, all we can do is error
-    } else {
-      throw new Error(
-        'i18n: Plural form ".other" is required for "' + this.locale + '" locale'
-      )
-    }
-  };
-
-  /**
-   * Get the plural form using our fallback implementation
-   *
-   * This is split out into a separate function to make it easier to test the
-   * fallback behaviour in an environment where Intl.PluralRules exists.
-   *
-   * @param {number} count - Number used to determine which pluralisation to use.
-   * @returns {PluralRule} The pluralisation form for count in this locale.
-   */
-  I18n.prototype.selectPluralFormUsingFallbackRules = function (count) {
-    // Currently our custom code can only handle positive integers, so let's
-    // make sure our number is one of those.
-    count = Math.abs(Math.floor(count));
-
-    var ruleset = this.getPluralRulesForLocale();
-
-    if (ruleset) {
-      return I18n.pluralRules[ruleset](count)
-    }
-
-    return 'other'
-  };
-
-  /**
-   * Work out which pluralisation rules to use for the current locale
-   *
-   * The locale may include a regional indicator (such as en-GB), but we don't
-   * usually care about this part, as pluralisation rules are usually the same
-   * regardless of region. There are exceptions, however, (e.g. Portuguese) so
-   * this searches by both the full and shortened locale codes, just to be sure.
-   *
-   * @returns {string | undefined} The name of the pluralisation rule to use (a key for one
-   *   of the functions in this.pluralRules)
-   */
-  I18n.prototype.getPluralRulesForLocale = function () {
-    var locale = this.locale;
-    var localeShort = locale.split('-')[0];
-
-    // Look through the plural rules map to find which `pluralRule` is
-    // appropriate for our current `locale`.
-    for (var pluralRule in I18n.pluralRulesMap) {
-      if (Object.prototype.hasOwnProperty.call(I18n.pluralRulesMap, pluralRule)) {
-        var languages = I18n.pluralRulesMap[pluralRule];
-        for (var i = 0; i < languages.length; i++) {
-          if (languages[i] === locale || languages[i] === localeShort) {
-            return pluralRule
-          }
-        }
+    checkInitialised() {
+      const constructor = this.constructor;
+      const moduleName = constructor.moduleName;
+      if (moduleName && isInitialised(this.$root, moduleName)) {
+        throw new InitError(constructor);
       }
     }
-  };
-
-  /**
-   * Map of plural rules to languages where those rules apply.
-   *
-   * Note: These groups are named for the most dominant or recognisable language
-   * that uses each system. The groupings do not imply that the languages are
-   * related to one another. Many languages have evolved the same systems
-   * independently of one another.
-   *
-   * Code to support more languages can be found in the i18n spike:
-   * {@link https://github.com/alphagov/govuk-frontend/blob/spike-i18n-support/src/govuk/i18n.mjs}
-   *
-   * Languages currently supported:
-   *
-   * Arabic: Arabic (ar)
-   * Chinese: Burmese (my), Chinese (zh), Indonesian (id), Japanese (ja),
-   *   Javanese (jv), Korean (ko), Malay (ms), Thai (th), Vietnamese (vi)
-   * French: Armenian (hy), Bangla (bn), French (fr), Gujarati (gu), Hindi (hi),
-   *   Persian Farsi (fa), Punjabi (pa), Zulu (zu)
-   * German: Afrikaans (af), Albanian (sq), Azerbaijani (az), Basque (eu),
-   *   Bulgarian (bg), Catalan (ca), Danish (da), Dutch (nl), English (en),
-   *   Estonian (et), Finnish (fi), Georgian (ka), German (de), Greek (el),
-   *   Hungarian (hu), Luxembourgish (lb), Norwegian (no), Somali (so),
-   *   Swahili (sw), Swedish (sv), Tamil (ta), Telugu (te), Turkish (tr),
-   *   Urdu (ur)
-   * Irish: Irish Gaelic (ga)
-   * Russian: Russian (ru), Ukrainian (uk)
-   * Scottish: Scottish Gaelic (gd)
-   * Spanish: European Portuguese (pt-PT), Italian (it), Spanish (es)
-   * Welsh: Welsh (cy)
-   *
-   * @type {Object<string, string[]>}
-   */
-  I18n.pluralRulesMap = {
-    arabic: ['ar'],
-    chinese: ['my', 'zh', 'id', 'ja', 'jv', 'ko', 'ms', 'th', 'vi'],
-    french: ['hy', 'bn', 'fr', 'gu', 'hi', 'fa', 'pa', 'zu'],
-    german: [
-      'af', 'sq', 'az', 'eu', 'bg', 'ca', 'da', 'nl', 'en', 'et', 'fi', 'ka',
-      'de', 'el', 'hu', 'lb', 'no', 'so', 'sw', 'sv', 'ta', 'te', 'tr', 'ur'
-    ],
-    irish: ['ga'],
-    russian: ['ru', 'uk'],
-    scottish: ['gd'],
-    spanish: ['pt-PT', 'it', 'es'],
-    welsh: ['cy']
-  };
-
-  /**
-   * Different pluralisation rule sets
-   *
-   * Returns the appropriate suffix for the plural form associated with `n`.
-   * Possible suffixes: 'zero', 'one', 'two', 'few', 'many', 'other' (the actual
-   * meaning of each differs per locale). 'other' should always exist, even in
-   * languages without plurals, such as Chinese.
-   * {@link https://cldr.unicode.org/index/cldr-spec/plural-rules}
-   *
-   * The count must be a positive integer. Negative numbers and decimals aren't accounted for
-   *
-   * @type {Object<string, function(number): PluralRule>}
-   */
-  I18n.pluralRules = {
-    /* eslint-disable jsdoc/require-jsdoc */
-    arabic: function (n) {
-      if (n === 0) { return 'zero' }
-      if (n === 1) { return 'one' }
-      if (n === 2) { return 'two' }
-      if (n % 100 >= 3 && n % 100 <= 10) { return 'few' }
-      if (n % 100 >= 11 && n % 100 <= 99) { return 'many' }
-      return 'other'
-    },
-    chinese: function () {
-      return 'other'
-    },
-    french: function (n) {
-      return n === 0 || n === 1 ? 'one' : 'other'
-    },
-    german: function (n) {
-      return n === 1 ? 'one' : 'other'
-    },
-    irish: function (n) {
-      if (n === 1) { return 'one' }
-      if (n === 2) { return 'two' }
-      if (n >= 3 && n <= 6) { return 'few' }
-      if (n >= 7 && n <= 10) { return 'many' }
-      return 'other'
-    },
-    russian: function (n) {
-      var lastTwo = n % 100;
-      var last = lastTwo % 10;
-      if (last === 1 && lastTwo !== 11) { return 'one' }
-      if (last >= 2 && last <= 4 && !(lastTwo >= 12 && lastTwo <= 14)) { return 'few' }
-      if (last === 0 || (last >= 5 && last <= 9) || (lastTwo >= 11 && lastTwo <= 14)) { return 'many' }
-      // Note: The 'other' suffix is only used by decimal numbers in Russian.
-      // We don't anticipate it being used, but it's here for consistency.
-      return 'other'
-    },
-    scottish: function (n) {
-      if (n === 1 || n === 11) { return 'one' }
-      if (n === 2 || n === 12) { return 'two' }
-      if ((n >= 3 && n <= 10) || (n >= 13 && n <= 19)) { return 'few' }
-      return 'other'
-    },
-    spanish: function (n) {
-      if (n === 1) { return 'one' }
-      if (n % 1000000 === 0 && n !== 0) { return 'many' }
-      return 'other'
-    },
-    welsh: function (n) {
-      if (n === 0) { return 'zero' }
-      if (n === 1) { return 'one' }
-      if (n === 2) { return 'two' }
-      if (n === 3) { return 'few' }
-      if (n === 6) { return 'many' }
-      return 'other'
+    static checkSupport() {
+      if (!isSupported()) {
+        throw new SupportError();
+      }
     }
-    /* eslint-enable jsdoc/require-jsdoc */
-  };
-
-  /**
-   * Plural rule category mnemonic tags
-   *
-   * @typedef {'zero' | 'one' | 'two' | 'few' | 'many' | 'other'} PluralRule
-   */
-
-  /**
-   * Translated message by plural rule they correspond to.
-   *
-   * Allows to group pluralised messages under a single key when passing
-   * translations to a component's constructor
-   *
-   * @typedef {object} TranslationPluralForms
-   * @property {string} [other] - General plural form
-   * @property {string} [zero] - Plural form used with 0
-   * @property {string} [one] - Plural form used with 1
-   * @property {string} [two] - Plural form used with 2
-   * @property {string} [few] - Plural form used for a few
-   * @property {string} [many] - Plural form used for many
-   */
-
-  // @ts-nocheck
-  (function (undefined) {
-
-      var detect = (
-        'DOMTokenList' in this && (function (x) {
-          return 'classList' in x ? !x.classList.toggle('x', false) && !x.className : true;
-        })(document.createElement('x'))
-      );
-
-      if (detect) return
-
-      (function (global) {
-        var nativeImpl = "DOMTokenList" in global && global.DOMTokenList;
-
-        if (
-            !nativeImpl ||
-            (
-              !!document.createElementNS &&
-              !!document.createElementNS('http://www.w3.org/2000/svg', 'svg') &&
-              !(document.createElementNS("http://www.w3.org/2000/svg", "svg").classList instanceof DOMTokenList)
-            )
-          ) {
-          global.DOMTokenList = (function() { // eslint-disable-line no-unused-vars
-            var dpSupport = true;
-            var defineGetter = function (object, name, fn, configurable) {
-              if (Object.defineProperty)
-                Object.defineProperty(object, name, {
-                  configurable: false === dpSupport ? true : !!configurable,
-                  get: fn
-                });
-
-              else object.__defineGetter__(name, fn);
-            };
-
-            /** Ensure the browser allows Object.defineProperty to be used on native JavaScript objects. */
-            try {
-              defineGetter({}, "support");
-            }
-            catch (e) {
-              dpSupport = false;
-            }
-
-
-            var _DOMTokenList = function (el, prop) {
-              var that = this;
-              var tokens = [];
-              var tokenMap = {};
-              var length = 0;
-              var maxLength = 0;
-              var addIndexGetter = function (i) {
-                defineGetter(that, i, function () {
-                  preop();
-                  return tokens[i];
-                }, false);
-
-              };
-              var reindex = function () {
-
-                /** Define getter functions for array-like access to the tokenList's contents. */
-                if (length >= maxLength)
-                  for (; maxLength < length; ++maxLength) {
-                    addIndexGetter(maxLength);
-                  }
-              };
-
-              /** Helper function called at the start of each class method. Internal use only. */
-              var preop = function () {
-                var error;
-                var i;
-                var args = arguments;
-                var rSpace = /\s+/;
-
-                /** Validate the token/s passed to an instance method, if any. */
-                if (args.length)
-                  for (i = 0; i < args.length; ++i)
-                    if (rSpace.test(args[i])) {
-                      error = new SyntaxError('String "' + args[i] + '" ' + "contains" + ' an invalid character');
-                      error.code = 5;
-                      error.name = "InvalidCharacterError";
-                      throw error;
-                    }
-
-
-                /** Split the new value apart by whitespace*/
-                if (typeof el[prop] === "object") {
-                  tokens = ("" + el[prop].baseVal).replace(/^\s+|\s+$/g, "").split(rSpace);
-                } else {
-                  tokens = ("" + el[prop]).replace(/^\s+|\s+$/g, "").split(rSpace);
-                }
-
-                /** Avoid treating blank strings as single-item token lists */
-                if ("" === tokens[0]) tokens = [];
-
-                /** Repopulate the internal token lists */
-                tokenMap = {};
-                for (i = 0; i < tokens.length; ++i)
-                  tokenMap[tokens[i]] = true;
-                length = tokens.length;
-                reindex();
-              };
-
-              /** Populate our internal token list if the targeted attribute of the subject element isn't empty. */
-              preop();
-
-              /** Return the number of tokens in the underlying string. Read-only. */
-              defineGetter(that, "length", function () {
-                preop();
-                return length;
-              });
-
-              /** Override the default toString/toLocaleString methods to return a space-delimited list of tokens when typecast. */
-              that.toLocaleString =
-                that.toString = function () {
-                  preop();
-                  return tokens.join(" ");
-                };
-
-              that.item = function (idx) {
-                preop();
-                return tokens[idx];
-              };
-
-              that.contains = function (token) {
-                preop();
-                return !!tokenMap[token];
-              };
-
-              that.add = function () {
-                preop.apply(that, args = arguments);
-
-                for (var args, token, i = 0, l = args.length; i < l; ++i) {
-                  token = args[i];
-                  if (!tokenMap[token]) {
-                    tokens.push(token);
-                    tokenMap[token] = true;
-                  }
-                }
-
-                /** Update the targeted attribute of the attached element if the token list's changed. */
-                if (length !== tokens.length) {
-                  length = tokens.length >>> 0;
-                  if (typeof el[prop] === "object") {
-                    el[prop].baseVal = tokens.join(" ");
-                  } else {
-                    el[prop] = tokens.join(" ");
-                  }
-                  reindex();
-                }
-              };
-
-              that.remove = function () {
-                preop.apply(that, args = arguments);
-
-                /** Build a hash of token names to compare against when recollecting our token list. */
-                for (var args, ignore = {}, i = 0, t = []; i < args.length; ++i) {
-                  ignore[args[i]] = true;
-                  delete tokenMap[args[i]];
-                }
-
-                /** Run through our tokens list and reassign only those that aren't defined in the hash declared above. */
-                for (i = 0; i < tokens.length; ++i)
-                  if (!ignore[tokens[i]]) t.push(tokens[i]);
-
-                tokens = t;
-                length = t.length >>> 0;
-
-                /** Update the targeted attribute of the attached element. */
-                if (typeof el[prop] === "object") {
-                  el[prop].baseVal = tokens.join(" ");
-                } else {
-                  el[prop] = tokens.join(" ");
-                }
-                reindex();
-              };
-
-              that.toggle = function (token, force) {
-                preop.apply(that, [token]);
-
-                /** Token state's being forced. */
-                if (undefined !== force) {
-                  if (force) {
-                    that.add(token);
-                    return true;
-                  } else {
-                    that.remove(token);
-                    return false;
-                  }
-                }
-
-                /** Token already exists in tokenList. Remove it, and return FALSE. */
-                if (tokenMap[token]) {
-                  that.remove(token);
-                  return false;
-                }
-
-                /** Otherwise, add the token and return TRUE. */
-                that.add(token);
-                return true;
-              };
-
-              return that;
-            };
-
-            return _DOMTokenList;
-          }());
-        }
-
-        // Add second argument to native DOMTokenList.toggle() if necessary
-        (function () {
-          var e = document.createElement('span');
-          if (!('classList' in e)) return;
-          e.classList.toggle('x', false);
-          if (!e.classList.contains('x')) return;
-          e.classList.constructor.prototype.toggle = function toggle(token /*, force*/) {
-            var force = arguments[1];
-            if (force === undefined) {
-              var add = !this.contains(token);
-              this[add ? 'add' : 'remove'](token);
-              return add;
-            }
-            force = !!force;
-            this[force ? 'add' : 'remove'](token);
-            return force;
-          };
-        }());
-
-        // Add multiple arguments to native DOMTokenList.add() if necessary
-        (function () {
-          var e = document.createElement('span');
-          if (!('classList' in e)) return;
-          e.classList.add('a', 'b');
-          if (e.classList.contains('b')) return;
-          var native = e.classList.constructor.prototype.add;
-          e.classList.constructor.prototype.add = function () {
-            var args = arguments;
-            var l = arguments.length;
-            for (var i = 0; i < l; i++) {
-              native.call(this, args[i]);
-            }
-          };
-        }());
-
-        // Add multiple arguments to native DOMTokenList.remove() if necessary
-        (function () {
-          var e = document.createElement('span');
-          if (!('classList' in e)) return;
-          e.classList.add('a');
-          e.classList.add('b');
-          e.classList.remove('a', 'b');
-          if (!e.classList.contains('b')) return;
-          var native = e.classList.constructor.prototype.remove;
-          e.classList.constructor.prototype.remove = function () {
-            var args = arguments;
-            var l = arguments.length;
-            for (var i = 0; i < l; i++) {
-              native.call(this, args[i]);
-            }
-          };
-        }());
-
-      }(this));
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-      var detect = (
-        'document' in this && "classList" in document.documentElement && 'Element' in this && 'classList' in Element.prototype && (function () {
-          var e = document.createElement('span');
-          e.classList.add('a', 'b');
-          return e.classList.contains('b');
-        }())
-      );
-
-      if (detect) return
-
-      (function (global) {
-        var dpSupport = true;
-        var defineGetter = function (object, name, fn, configurable) {
-          if (Object.defineProperty)
-            Object.defineProperty(object, name, {
-              configurable: false === dpSupport ? true : !!configurable,
-              get: fn
-            });
-
-          else object.__defineGetter__(name, fn);
-        };
-        /** Ensure the browser allows Object.defineProperty to be used on native JavaScript objects. */
-        try {
-          defineGetter({}, "support");
-        }
-        catch (e) {
-          dpSupport = false;
-        }
-        /** Polyfills a property with a DOMTokenList */
-        var addProp = function (o, name, attr) {
-
-          defineGetter(o.prototype, name, function () {
-            var tokenList;
-
-            var THIS = this,
-
-            /** Prevent this from firing twice for some reason. What the hell, IE. */
-            gibberishProperty = "__defineGetter__" + "DEFINE_PROPERTY" + name;
-            if(THIS[gibberishProperty]) return tokenList;
-            THIS[gibberishProperty] = true;
-
-            /**
-             * IE8 can't define properties on native JavaScript objects, so we'll use a dumb hack instead.
-             *
-             * What this is doing is creating a dummy element ("reflection") inside a detached phantom node ("mirror")
-             * that serves as the target of Object.defineProperty instead. While we could simply use the subject HTML
-             * element instead, this would conflict with element types which use indexed properties (such as forms and
-             * select lists).
-             */
-            if (false === dpSupport) {
-
-              var visage;
-              var mirror = addProp.mirror || document.createElement("div");
-              var reflections = mirror.childNodes;
-              var l = reflections.length;
-
-              for (var i = 0; i < l; ++i)
-                if (reflections[i]._R === THIS) {
-                  visage = reflections[i];
-                  break;
-                }
-
-              /** Couldn't find an element's reflection inside the mirror. Materialise one. */
-              visage || (visage = mirror.appendChild(document.createElement("div")));
-
-              tokenList = DOMTokenList.call(visage, THIS, attr);
-            } else tokenList = new DOMTokenList(THIS, attr);
-
-            defineGetter(THIS, name, function () {
-              return tokenList;
-            });
-            delete THIS[gibberishProperty];
-
-            return tokenList;
-          }, true);
-        };
-
-        addProp(global.Element, "classList", "className");
-        addProp(global.HTMLElement, "classList", "className");
-        addProp(global.HTMLLinkElement, "relList", "rel");
-        addProp(global.HTMLAnchorElement, "relList", "rel");
-        addProp(global.HTMLAreaElement, "relList", "rel");
-      }(this));
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-  (function (undefined) {
-
-    var detect = (
-      'document' in this && "matches" in document.documentElement
-    );
-
-    if (detect) return
-
-    Element.prototype.matches = Element.prototype.webkitMatchesSelector || Element.prototype.oMatchesSelector || Element.prototype.msMatchesSelector || Element.prototype.mozMatchesSelector || function matches(selector) {
-      var element = this;
-      var elements = (element.document || element.ownerDocument).querySelectorAll(selector);
-      var index = 0;
-
-      while (elements[index] && elements[index] !== element) {
-        ++index;
-      }
-
-      return !!elements[index];
-    };
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-    var detect = (
-      'document' in this && "closest" in document.documentElement
-    );
-
-    if (detect) return
-
-    Element.prototype.closest = function closest(selector) {
-      var node = this;
-
-      while (node) {
-        if (node.matches(selector)) return node;
-        else node = 'SVGElement' in window && node instanceof SVGElement ? node.parentNode : node.parentElement;
-      }
-
-      return null;
-    };
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-  (function (undefined) {
-
-  var detect = ('Window' in this);
-
-  if (detect) return
-
-  if ((typeof WorkerGlobalScope === "undefined") && (typeof importScripts !== "function")) {
-  	(function (global) {
-  		if (global.constructor) {
-  			global.Window = global.constructor;
-  		} else {
-  			(global.Window = global.constructor = new Function('return function Window() {}')()).prototype = this;
-  		}
-  	}(this));
   }
 
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-  var detect = (
-    (function(global) {
-
-    	if (!('Event' in global)) return false;
-    	if (typeof global.Event === 'function') return true;
-
-    	try {
-
-    		// In IE 9-11, the Event object exists but cannot be instantiated
-    		new Event('click');
-    		return true;
-    	} catch(e) {
-    		return false;
-    	}
-    }(this))
-  );
-
-  if (detect) return
-
-  (function () {
-  	var unlistenableWindowEvents = {
-  		click: 1,
-  		dblclick: 1,
-  		keyup: 1,
-  		keypress: 1,
-  		keydown: 1,
-  		mousedown: 1,
-  		mouseup: 1,
-  		mousemove: 1,
-  		mouseover: 1,
-  		mouseenter: 1,
-  		mouseleave: 1,
-  		mouseout: 1,
-  		storage: 1,
-  		storagecommit: 1,
-  		textinput: 1
-  	};
-
-  	// This polyfill depends on availability of `document` so will not run in a worker
-  	// However, we asssume there are no browsers with worker support that lack proper
-  	// support for `Event` within the worker
-  	if (typeof document === 'undefined' || typeof window === 'undefined') return;
-
-  	function indexOf(array, element) {
-  		var
-  		index = -1,
-  		length = array.length;
-
-  		while (++index < length) {
-  			if (index in array && array[index] === element) {
-  				return index;
-  			}
-  		}
-
-  		return -1;
-  	}
-
-  	var existingProto = (window.Event && window.Event.prototype) || null;
-  	window.Event = Window.prototype.Event = function Event(type, eventInitDict) {
-  		if (!type) {
-  			throw new Error('Not enough arguments');
-  		}
-
-  		var event;
-  		// Shortcut if browser supports createEvent
-  		if ('createEvent' in document) {
-  			event = document.createEvent('Event');
-  			var bubbles = eventInitDict && eventInitDict.bubbles !== undefined ? eventInitDict.bubbles : false;
-  			var cancelable = eventInitDict && eventInitDict.cancelable !== undefined ? eventInitDict.cancelable : false;
-
-  			event.initEvent(type, bubbles, cancelable);
-
-  			return event;
-  		}
-
-  		event = document.createEventObject();
-
-  		event.type = type;
-  		event.bubbles = eventInitDict && eventInitDict.bubbles !== undefined ? eventInitDict.bubbles : false;
-  		event.cancelable = eventInitDict && eventInitDict.cancelable !== undefined ? eventInitDict.cancelable : false;
-
-  		return event;
-  	};
-  	if (existingProto) {
-  		Object.defineProperty(window.Event, 'prototype', {
-  			configurable: false,
-  			enumerable: false,
-  			writable: true,
-  			value: existingProto
-  		});
-  	}
-
-  	if (!('createEvent' in document)) {
-  		window.addEventListener = Window.prototype.addEventListener = Document.prototype.addEventListener = Element.prototype.addEventListener = function addEventListener() {
-  			var
-  			element = this,
-  			type = arguments[0],
-  			listener = arguments[1];
-
-  			if (element === window && type in unlistenableWindowEvents) {
-  				throw new Error('In IE8 the event: ' + type + ' is not available on the window object. Please see https://github.com/Financial-Times/polyfill-service/issues/317 for more information.');
-  			}
-
-  			if (!element._events) {
-  				element._events = {};
-  			}
-
-  			if (!element._events[type]) {
-  				element._events[type] = function (event) {
-  					var
-  					list = element._events[event.type].list,
-  					events = list.slice(),
-  					index = -1,
-  					length = events.length,
-  					eventElement;
-
-  					event.preventDefault = function preventDefault() {
-  						if (event.cancelable !== false) {
-  							event.returnValue = false;
-  						}
-  					};
-
-  					event.stopPropagation = function stopPropagation() {
-  						event.cancelBubble = true;
-  					};
-
-  					event.stopImmediatePropagation = function stopImmediatePropagation() {
-  						event.cancelBubble = true;
-  						event.cancelImmediate = true;
-  					};
-
-  					event.currentTarget = element;
-  					event.relatedTarget = event.fromElement || null;
-  					event.target = event.target || event.srcElement || element;
-  					event.timeStamp = new Date().getTime();
-
-  					if (event.clientX) {
-  						event.pageX = event.clientX + document.documentElement.scrollLeft;
-  						event.pageY = event.clientY + document.documentElement.scrollTop;
-  					}
-
-  					while (++index < length && !event.cancelImmediate) {
-  						if (index in events) {
-  							eventElement = events[index];
-
-  							if (indexOf(list, eventElement) !== -1 && typeof eventElement === 'function') {
-  								eventElement.call(element, event);
-  							}
-  						}
-  					}
-  				};
-
-  				element._events[type].list = [];
-
-  				if (element.attachEvent) {
-  					element.attachEvent('on' + type, element._events[type]);
-  				}
-  			}
-
-  			element._events[type].list.push(listener);
-  		};
-
-  		window.removeEventListener = Window.prototype.removeEventListener = Document.prototype.removeEventListener = Element.prototype.removeEventListener = function removeEventListener() {
-  			var
-  			element = this,
-  			type = arguments[0],
-  			listener = arguments[1],
-  			index;
-
-  			if (element._events && element._events[type] && element._events[type].list) {
-  				index = indexOf(element._events[type].list, listener);
-
-  				if (index !== -1) {
-  					element._events[type].list.splice(index, 1);
-
-  					if (!element._events[type].list.length) {
-  						if (element.detachEvent) {
-  							element.detachEvent('on' + type, element._events[type]);
-  						}
-  						delete element._events[type];
-  					}
-  				}
-  			}
-  		};
-
-  		window.dispatchEvent = Window.prototype.dispatchEvent = Document.prototype.dispatchEvent = Element.prototype.dispatchEvent = function dispatchEvent(event) {
-  			if (!arguments.length) {
-  				throw new Error('Not enough arguments');
-  			}
-
-  			if (!event || typeof event.type !== 'string') {
-  				throw new Error('DOM Events Exception 0');
-  			}
-
-  			var element = this, type = event.type;
-
-  			try {
-  				if (!event.bubbles) {
-  					event.cancelBubble = true;
-
-  					var cancelBubbleEvent = function (event) {
-  						event.cancelBubble = true;
-
-  						(element || window).detachEvent('on' + type, cancelBubbleEvent);
-  					};
-
-  					this.attachEvent('on' + type, cancelBubbleEvent);
-  				}
-
-  				this.fireEvent('on' + type, event);
-  			} catch (error) {
-  				event.target = element;
-
-  				do {
-  					event.currentTarget = element;
-
-  					if ('_events' in element && typeof element._events[type] === 'function') {
-  						element._events[type].call(element, event);
-  					}
-
-  					if (typeof element['on' + type] === 'function') {
-  						element['on' + type].call(element, event);
-  					}
-
-  					element = element.nodeType === 9 ? element.parentWindow : element.parentNode;
-  				} while (element && !event.cancelBubble);
-  			}
-
-  			return true;
-  		};
-
-  		// Add the DOMContentLoaded Event
-  		document.attachEvent('onreadystatechange', function() {
-  			if (document.readyState === 'complete') {
-  				document.dispatchEvent(new Event('DOMContentLoaded', {
-  					bubbles: true
-  				}));
-  			}
-  		});
-  	}
-  }());
-
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-    var detect = 'bind' in Function.prototype;
-
-    if (detect) return
-
-    Object.defineProperty(Function.prototype, 'bind', {
-        value: function bind(that) { // .length is 1
-            // add necessary es5-shim utilities
-            var $Array = Array;
-            var $Object = Object;
-            var ObjectPrototype = $Object.prototype;
-            var ArrayPrototype = $Array.prototype;
-            var Empty = function Empty() {};
-            var to_string = ObjectPrototype.toString;
-            var hasToStringTag = typeof Symbol === 'function' && typeof Symbol.toStringTag === 'symbol';
-            var isCallable; /* inlined from https://npmjs.com/is-callable */ var fnToStr = Function.prototype.toString, tryFunctionObject = function tryFunctionObject(value) { try { fnToStr.call(value); return true; } catch (e) { return false; } }, fnClass = '[object Function]', genClass = '[object GeneratorFunction]'; isCallable = function isCallable(value) { if (typeof value !== 'function') { return false; } if (hasToStringTag) { return tryFunctionObject(value); } var strClass = to_string.call(value); return strClass === fnClass || strClass === genClass; };
-            var array_slice = ArrayPrototype.slice;
-            var array_concat = ArrayPrototype.concat;
-            var array_push = ArrayPrototype.push;
-            var max = Math.max;
-            // /add necessary es5-shim utilities
-
-            // 1. Let Target be the this value.
-            var target = this;
-            // 2. If IsCallable(Target) is false, throw a TypeError exception.
-            if (!isCallable(target)) {
-                throw new TypeError('Function.prototype.bind called on incompatible ' + target);
-            }
-            // 3. Let A be a new (possibly empty) internal list of all of the
-            //   argument values provided after thisArg (arg1, arg2 etc), in order.
-            // XXX slicedArgs will stand in for "A" if used
-            var args = array_slice.call(arguments, 1); // for normal call
-            // 4. Let F be a new native ECMAScript object.
-            // 11. Set the [[Prototype]] internal property of F to the standard
-            //   built-in Function prototype object as specified in 15.3.3.1.
-            // 12. Set the [[Call]] internal property of F as described in
-            //   15.3.4.5.1.
-            // 13. Set the [[Construct]] internal property of F as described in
-            //   15.3.4.5.2.
-            // 14. Set the [[HasInstance]] internal property of F as described in
-            //   15.3.4.5.3.
-            var bound;
-            var binder = function () {
-
-                if (this instanceof bound) {
-                    // 15.3.4.5.2 [[Construct]]
-                    // When the [[Construct]] internal method of a function object,
-                    // F that was created using the bind function is called with a
-                    // list of arguments ExtraArgs, the following steps are taken:
-                    // 1. Let target be the value of F's [[TargetFunction]]
-                    //   internal property.
-                    // 2. If target has no [[Construct]] internal method, a
-                    //   TypeError exception is thrown.
-                    // 3. Let boundArgs be the value of F's [[BoundArgs]] internal
-                    //   property.
-                    // 4. Let args be a new list containing the same values as the
-                    //   list boundArgs in the same order followed by the same
-                    //   values as the list ExtraArgs in the same order.
-                    // 5. Return the result of calling the [[Construct]] internal
-                    //   method of target providing args as the arguments.
-
-                    var result = target.apply(
-                        this,
-                        array_concat.call(args, array_slice.call(arguments))
-                    );
-                    if ($Object(result) === result) {
-                        return result;
-                    }
-                    return this;
-
-                } else {
-                    // 15.3.4.5.1 [[Call]]
-                    // When the [[Call]] internal method of a function object, F,
-                    // which was created using the bind function is called with a
-                    // this value and a list of arguments ExtraArgs, the following
-                    // steps are taken:
-                    // 1. Let boundArgs be the value of F's [[BoundArgs]] internal
-                    //   property.
-                    // 2. Let boundThis be the value of F's [[BoundThis]] internal
-                    //   property.
-                    // 3. Let target be the value of F's [[TargetFunction]] internal
-                    //   property.
-                    // 4. Let args be a new list containing the same values as the
-                    //   list boundArgs in the same order followed by the same
-                    //   values as the list ExtraArgs in the same order.
-                    // 5. Return the result of calling the [[Call]] internal method
-                    //   of target providing boundThis as the this value and
-                    //   providing args as the arguments.
-
-                    // equiv: target.call(this, ...boundArgs, ...args)
-                    return target.apply(
-                        that,
-                        array_concat.call(args, array_slice.call(arguments))
-                    );
-
-                }
-
-            };
-
-            // 15. If the [[Class]] internal property of Target is "Function", then
-            //     a. Let L be the length property of Target minus the length of A.
-            //     b. Set the length own property of F to either 0 or L, whichever is
-            //       larger.
-            // 16. Else set the length own property of F to 0.
-
-            var boundLength = max(0, target.length - args.length);
-
-            // 17. Set the attributes of the length own property of F to the values
-            //   specified in 15.3.5.1.
-            var boundArgs = [];
-            for (var i = 0; i < boundLength; i++) {
-                array_push.call(boundArgs, '$' + i);
-            }
-
-            // XXX Build a dynamic function with desired amount of arguments is the only
-            // way to set the length property of a function.
-            // In environments where Content Security Policies enabled (Chrome extensions,
-            // for ex.) all use of eval or Function costructor throws an exception.
-            // However in all of these environments Function.prototype.bind exists
-            // and so this code will never be executed.
-            bound = Function('binder', 'return function (' + boundArgs.join(',') + '){ return binder.apply(this, arguments); }')(binder);
-
-            if (target.prototype) {
-                Empty.prototype = target.prototype;
-                bound.prototype = new Empty();
-                // Clean up dangling references.
-                Empty.prototype = null;
-            }
-
-            // TODO
-            // 18. Set the [[Extensible]] internal property of F to true.
-
-            // TODO
-            // 19. Let thrower be the [[ThrowTypeError]] function Object (13.2.3).
-            // 20. Call the [[DefineOwnProperty]] internal method of F with
-            //   arguments "caller", PropertyDescriptor {[[Get]]: thrower, [[Set]]:
-            //   thrower, [[Enumerable]]: false, [[Configurable]]: false}, and
-            //   false.
-            // 21. Call the [[DefineOwnProperty]] internal method of F with
-            //   arguments "arguments", PropertyDescriptor {[[Get]]: thrower,
-            //   [[Set]]: thrower, [[Enumerable]]: false, [[Configurable]]: false},
-            //   and false.
-
-            // TODO
-            // NOTE Function objects created using Function.prototype.bind do not
-            // have a prototype property or the [[Code]], [[FormalParameters]], and
-            // [[Scope]] internal properties.
-            // XXX can't delete prototype in pure-js.
-
-            // 22. Return F.
-            return bound;
-        }
-    });
-  })
-  .call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+  /**
+   * @typedef ChildClass
+   * @property {string} moduleName - The module name that'll be looked for in the DOM when initialising the component
+   */
 
   /**
-   * @constant
-   * @type {AccordionTranslations}
-   * @see Default value for {@link AccordionConfig.i18n}
-   * @default
+   * @typedef {typeof Component & ChildClass} ChildClassConstructor
    */
-  var ACCORDION_TRANSLATIONS = {
-    hideAllSections: 'Hide all sections',
-    hideSection: 'Hide',
-    hideSectionAriaLabel: 'Hide this section',
-    showAllSections: 'Show all sections',
-    showSection: 'Show',
-    showSectionAriaLabel: 'Show this section'
-  };
+  Component.elementType = HTMLElement;
+
+  const configOverride = Symbol.for('configOverride');
+  class ConfigurableComponent extends Component {
+    [configOverride](param) {
+      return {};
+    }
+
+    /**
+     * Returns the root element of the component
+     *
+     * @protected
+     * @returns {ConfigurationType} - the root element of component
+     */
+    get config() {
+      return this._config;
+    }
+    constructor($root, config) {
+      super($root);
+      this._config = void 0;
+      const childConstructor = this.constructor;
+      if (!isObject(childConstructor.defaults)) {
+        throw new ConfigError(formatErrorMessage(childConstructor, 'Config passed as parameter into constructor but no defaults defined'));
+      }
+      const datasetConfig = normaliseDataset(childConstructor, this._$root.dataset);
+      this._config = mergeConfigs(childConstructor.defaults, config != null ? config : {}, this[configOverride](datasetConfig), datasetConfig);
+    }
+  }
+  function normaliseString(value, property) {
+    const trimmedValue = value ? value.trim() : '';
+    let output;
+    let outputType = property == null ? void 0 : property.type;
+    if (!outputType) {
+      if (['true', 'false'].includes(trimmedValue)) {
+        outputType = 'boolean';
+      }
+      if (trimmedValue.length > 0 && isFinite(Number(trimmedValue))) {
+        outputType = 'number';
+      }
+    }
+    switch (outputType) {
+      case 'boolean':
+        output = trimmedValue === 'true';
+        break;
+      case 'number':
+        output = Number(trimmedValue);
+        break;
+      default:
+        output = value;
+    }
+    return output;
+  }
+  function normaliseDataset(Component, dataset) {
+    if (!isObject(Component.schema)) {
+      throw new ConfigError(formatErrorMessage(Component, 'Config passed as parameter into constructor but no schema defined'));
+    }
+    const out = {};
+    const entries = Object.entries(Component.schema.properties);
+    for (const entry of entries) {
+      const [namespace, property] = entry;
+      const field = namespace.toString();
+      if (field in dataset) {
+        out[field] = normaliseString(dataset[field], property);
+      }
+      if ((property == null ? void 0 : property.type) === 'object') {
+        out[field] = extractConfigByNamespace(Component.schema, dataset, namespace);
+      }
+    }
+    return out;
+  }
+  function normaliseOptions(scopeOrOptions) {
+    let $scope = document;
+    let onError;
+    if (isObject(scopeOrOptions)) {
+      const options = scopeOrOptions;
+      if (isScope(options.scope) || options.scope === null) {
+        $scope = options.scope;
+      }
+      if (typeof options.onError === 'function') {
+        onError = options.onError;
+      }
+    }
+    if (isScope(scopeOrOptions)) {
+      $scope = scopeOrOptions;
+    } else if (scopeOrOptions === null) {
+      $scope = null;
+    } else if (typeof scopeOrOptions === 'function') {
+      onError = scopeOrOptions;
+    }
+    return {
+      scope: $scope,
+      onError
+    };
+  }
+  function mergeConfigs(...configObjects) {
+    const formattedConfigObject = {};
+    for (const configObject of configObjects) {
+      for (const key of Object.keys(configObject)) {
+        const option = formattedConfigObject[key];
+        const override = configObject[key];
+        if (isObject(option) && isObject(override)) {
+          formattedConfigObject[key] = mergeConfigs(option, override);
+        } else {
+          formattedConfigObject[key] = override;
+        }
+      }
+    }
+    return formattedConfigObject;
+  }
+  function validateConfig(schema, config) {
+    const validationErrors = [];
+    for (const [name, conditions] of Object.entries(schema)) {
+      const errors = [];
+      if (Array.isArray(conditions)) {
+        for (const {
+          required,
+          errorMessage
+        } of conditions) {
+          if (!required.every(key => !!config[key])) {
+            errors.push(errorMessage);
+          }
+        }
+        if (name === 'anyOf' && !(conditions.length - errors.length >= 1)) {
+          validationErrors.push(...errors);
+        }
+      }
+    }
+    return validationErrors;
+  }
+  function extractConfigByNamespace(schema, dataset, namespace) {
+    const property = schema.properties[namespace];
+    if ((property == null ? void 0 : property.type) !== 'object') {
+      return;
+    }
+    const newObject = {
+      [namespace]: {}
+    };
+    for (const [key, value] of Object.entries(dataset)) {
+      let current = newObject;
+      const keyParts = key.split('.');
+      for (const [index, name] of keyParts.entries()) {
+        if (isObject(current)) {
+          if (index < keyParts.length - 1) {
+            if (!isObject(current[name])) {
+              current[name] = {};
+            }
+            current = current[name];
+          } else if (key !== namespace) {
+            current[name] = normaliseString(value);
+          }
+        }
+      }
+    }
+    return newObject[namespace];
+  }
+  /**
+   * Schema for component config
+   *
+   * @template {Partial<Record<keyof ConfigurationType, unknown>>} ConfigurationType
+   * @typedef {object} Schema
+   * @property {Record<keyof ConfigurationType, SchemaProperty | undefined>} properties - Schema properties
+   * @property {SchemaCondition<ConfigurationType>[]} [anyOf] - List of schema conditions
+   */
+  /**
+   * Schema property for component config
+   *
+   * @typedef {object} SchemaProperty
+   * @property {'string' | 'boolean' | 'number' | 'object'} type - Property type
+   */
+  /**
+   * Schema condition for component config
+   *
+   * @template {Partial<Record<keyof ConfigurationType, unknown>>} ConfigurationType
+   * @typedef {object} SchemaCondition
+   * @property {(keyof ConfigurationType)[]} required - List of required config fields
+   * @property {string} errorMessage - Error message when required config fields not provided
+   */
+  /**
+   * @template {Partial<Record<keyof ConfigurationType, unknown>>} [ConfigurationType=ObjectNested]
+   * @typedef ChildClass
+   * @property {string} moduleName - The module name that'll be looked for in the DOM when initialising the component
+   * @property {Schema<ConfigurationType>} [schema] - The schema of the component configuration
+   * @property {ConfigurationType} [defaults] - The default values of the configuration of the component
+   */
+  /**
+   * @template {Partial<Record<keyof ConfigurationType, unknown>>} [ConfigurationType=ObjectNested]
+   * @typedef {typeof Component & ChildClass<ConfigurationType>} ChildClassConstructor<ConfigurationType>
+   */
+  /**
+   * @import { CompatibleClass, Config, CreateAllOptions, OnErrorCallback } from '../init.mjs'
+   */
+
+  class I18n {
+    constructor(translations = {}, config = {}) {
+      var _config$locale;
+      this.translations = void 0;
+      this.locale = void 0;
+      this.translations = translations;
+      this.locale = (_config$locale = config.locale) != null ? _config$locale : document.documentElement.lang || 'en';
+    }
+    t(lookupKey, options) {
+      if (!lookupKey) {
+        throw new Error('i18n: lookup key missing');
+      }
+      let translation = this.translations[lookupKey];
+      if (typeof (options == null ? void 0 : options.count) === 'number' && isObject(translation)) {
+        const translationPluralForm = translation[this.getPluralSuffix(lookupKey, options.count)];
+        if (translationPluralForm) {
+          translation = translationPluralForm;
+        }
+      }
+      if (typeof translation === 'string') {
+        if (translation.match(/%{(.\S+)}/)) {
+          if (!options) {
+            throw new Error('i18n: cannot replace placeholders in string if no option data provided');
+          }
+          return this.replacePlaceholders(translation, options);
+        }
+        return translation;
+      }
+      return lookupKey;
+    }
+    replacePlaceholders(translationString, options) {
+      const formatter = Intl.NumberFormat.supportedLocalesOf(this.locale).length ? new Intl.NumberFormat(this.locale) : undefined;
+      return translationString.replace(/%{(.\S+)}/g, function (placeholderWithBraces, placeholderKey) {
+        if (Object.prototype.hasOwnProperty.call(options, placeholderKey)) {
+          const placeholderValue = options[placeholderKey];
+          if (placeholderValue === false || typeof placeholderValue !== 'number' && typeof placeholderValue !== 'string') {
+            return '';
+          }
+          if (typeof placeholderValue === 'number') {
+            return formatter ? formatter.format(placeholderValue) : `${placeholderValue}`;
+          }
+          return placeholderValue;
+        }
+        throw new Error(`i18n: no data found to replace ${placeholderWithBraces} placeholder in string`);
+      });
+    }
+    hasIntlPluralRulesSupport() {
+      return Boolean('PluralRules' in window.Intl && Intl.PluralRules.supportedLocalesOf(this.locale).length);
+    }
+    getPluralSuffix(lookupKey, count) {
+      count = Number(count);
+      if (!isFinite(count)) {
+        return 'other';
+      }
+      const translation = this.translations[lookupKey];
+      const preferredForm = this.hasIntlPluralRulesSupport() ? new Intl.PluralRules(this.locale).select(count) : 'other';
+      if (isObject(translation)) {
+        if (preferredForm in translation) {
+          return preferredForm;
+        } else if ('other' in translation) {
+          console.warn(`i18n: Missing plural form ".${preferredForm}" for "${this.locale}" locale. Falling back to ".other".`);
+          return 'other';
+        }
+      }
+      throw new Error(`i18n: Plural form ".other" is required for "${this.locale}" locale`);
+    }
+  }
 
   /**
    * Accordion component
@@ -1798,565 +454,281 @@
    * The state of each section is saved to the DOM via the `aria-expanded`
    * attribute, which also provides accessibility.
    *
-   * @class
-   * @param {Element} $module - HTML element to use for accordion
-   * @param {AccordionConfig} [config] - Accordion config
+   * @preserve
+   * @augments ConfigurableComponent<AccordionConfig>
    */
-  function Accordion ($module, config) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    var defaultConfig = {
-      i18n: ACCORDION_TRANSLATIONS,
-      rememberExpanded: true
-    };
-
+  class Accordion extends ConfigurableComponent {
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {AccordionConfig}
+     * @param {Element | null} $root - HTML element to use for accordion
+     * @param {AccordionConfig} [config] - Accordion config
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      normaliseDataset($module.dataset)
-    );
-
-    /** @deprecated Will be made private in v5.0 */
-    this.i18n = new I18n(extractConfigByNamespace(this.config, 'i18n'));
-
-    /** @deprecated Will be made private in v5.0 */
-    this.controlsClass = 'govuk-accordion__controls';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.showAllClass = 'govuk-accordion__show-all';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.showAllTextClass = 'govuk-accordion__show-all-text';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionClass = 'govuk-accordion__section';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionExpandedClass = 'govuk-accordion__section--expanded';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionButtonClass = 'govuk-accordion__section-button';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionHeaderClass = 'govuk-accordion__section-header';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionHeadingClass = 'govuk-accordion__section-heading';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionHeadingDividerClass = 'govuk-accordion__section-heading-divider';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionHeadingTextClass = 'govuk-accordion__section-heading-text';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionHeadingTextFocusClass = 'govuk-accordion__section-heading-text-focus';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionShowHideToggleClass = 'govuk-accordion__section-toggle';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionShowHideToggleFocusClass = 'govuk-accordion__section-toggle-focus';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionShowHideTextClass = 'govuk-accordion__section-toggle-text';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.upChevronIconClass = 'govuk-accordion-nav__chevron';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.downChevronIconClass = 'govuk-accordion-nav__chevron--down';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionSummaryClass = 'govuk-accordion__section-summary';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionSummaryFocusClass = 'govuk-accordion__section-summary-focus';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.sectionContentClass = 'govuk-accordion__section-content';
-
-    var $sections = this.$module.querySelectorAll('.' + this.sectionClass);
-    if (!$sections.length) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$sections = $sections;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.browserSupportsSessionStorage = helper.checkForSessionStorage();
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$showAllButton = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$showAllIcon = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$showAllText = null;
-  }
-
-  /**
-   * Initialise component
-   */
-  Accordion.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$sections) {
-      return
-    }
-
-    this.initControls();
-    this.initSectionHeaders();
-
-    // See if "Show all sections" button text should be updated
-    var areAllSectionsOpen = this.checkIfAllSectionsOpen();
-    this.updateShowAllButton(areAllSectionsOpen);
-  };
-
-  /**
-   * Initialise controls and set attributes
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Accordion.prototype.initControls = function () {
-    // Create "Show all" button and set attributes
-    this.$showAllButton = document.createElement('button');
-    this.$showAllButton.setAttribute('type', 'button');
-    this.$showAllButton.setAttribute('class', this.showAllClass);
-    this.$showAllButton.setAttribute('aria-expanded', 'false');
-
-    // Create icon, add to element
-    this.$showAllIcon = document.createElement('span');
-    this.$showAllIcon.classList.add(this.upChevronIconClass);
-    this.$showAllButton.appendChild(this.$showAllIcon);
-
-    // Create control wrapper and add controls to it
-    var $accordionControls = document.createElement('div');
-    $accordionControls.setAttribute('class', this.controlsClass);
-    $accordionControls.appendChild(this.$showAllButton);
-    this.$module.insertBefore($accordionControls, this.$module.firstChild);
-
-    // Build additional wrapper for Show all toggle text and place after icon
-    this.$showAllText = document.createElement('span');
-    this.$showAllText.classList.add(this.showAllTextClass);
-    this.$showAllButton.appendChild(this.$showAllText);
-
-    // Handle click events on the show/hide all button
-    this.$showAllButton.addEventListener('click', this.onShowOrHideAllToggle.bind(this));
-
-    // Handle 'beforematch' events, if the user agent supports them
-    if ('onbeforematch' in document) {
-      document.addEventListener('beforematch', this.onBeforeMatch.bind(this));
-    }
-  };
-
-  /**
-   * Initialise section headers
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Accordion.prototype.initSectionHeaders = function () {
-    var $component = this;
-    var $sections = this.$sections;
-
-    // Loop through sections
-    nodeListForEach($sections, function ($section, i) {
-      var $header = $section.querySelector('.' + $component.sectionHeaderClass);
-      if (!$header) {
-        return
+    constructor($root, config = {}) {
+      super($root, config);
+      this.i18n = void 0;
+      this.controlsClass = 'govuk-accordion__controls';
+      this.showAllClass = 'govuk-accordion__show-all';
+      this.showAllTextClass = 'govuk-accordion__show-all-text';
+      this.sectionClass = 'govuk-accordion__section';
+      this.sectionExpandedClass = 'govuk-accordion__section--expanded';
+      this.sectionButtonClass = 'govuk-accordion__section-button';
+      this.sectionHeaderClass = 'govuk-accordion__section-header';
+      this.sectionHeadingClass = 'govuk-accordion__section-heading';
+      this.sectionHeadingDividerClass = 'govuk-accordion__section-heading-divider';
+      this.sectionHeadingTextClass = 'govuk-accordion__section-heading-text';
+      this.sectionHeadingTextFocusClass = 'govuk-accordion__section-heading-text-focus';
+      this.sectionShowHideToggleClass = 'govuk-accordion__section-toggle';
+      this.sectionShowHideToggleFocusClass = 'govuk-accordion__section-toggle-focus';
+      this.sectionShowHideTextClass = 'govuk-accordion__section-toggle-text';
+      this.upChevronIconClass = 'govuk-accordion-nav__chevron';
+      this.downChevronIconClass = 'govuk-accordion-nav__chevron--down';
+      this.sectionSummaryClass = 'govuk-accordion__section-summary';
+      this.sectionSummaryFocusClass = 'govuk-accordion__section-summary-focus';
+      this.sectionContentClass = 'govuk-accordion__section-content';
+      this.$sections = void 0;
+      this.$showAllButton = null;
+      this.$showAllIcon = null;
+      this.$showAllText = null;
+      this.i18n = new I18n(this.config.i18n);
+      const $sections = this.$root.querySelectorAll(`.${this.sectionClass}`);
+      if (!$sections.length) {
+        throw new ElementError({
+          component: Accordion,
+          identifier: `Sections (\`<div class="${this.sectionClass}">\`)`
+        });
       }
-
-      // Set header attributes
-      $component.constructHeaderMarkup($header, i);
-      $component.setExpanded($component.isExpanded($section), $section);
-
-      // Handle events
-      $header.addEventListener('click', $component.onSectionToggle.bind($component, $section));
-
-      // See if there is any state stored in sessionStorage and set the sections to
-      // open or closed.
-      $component.setInitialState($section);
-    });
-  };
-
-  /**
-   * Construct section header
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $header - Section header
-   * @param {number} index - Section index
-   */
-  Accordion.prototype.constructHeaderMarkup = function ($header, index) {
-    var $span = $header.querySelector('.' + this.sectionButtonClass);
-    var $heading = $header.querySelector('.' + this.sectionHeadingClass);
-    var $summary = $header.querySelector('.' + this.sectionSummaryClass);
-
-    if (!$span || !$heading) {
-      return
+      this.$sections = $sections;
+      this.initControls();
+      this.initSectionHeaders();
+      this.updateShowAllButton(this.areAllSectionsOpen());
     }
-
-    // Create a button element that will replace the '.govuk-accordion__section-button' span
-    var $button = document.createElement('button');
-    $button.setAttribute('type', 'button');
-    $button.setAttribute('aria-controls', this.$module.id + '-content-' + (index + 1).toString());
-
-    // Copy all attributes (https://developer.mozilla.org/en-US/docs/Web/API/Element/attributes) from $span to $button
-    for (var i = 0; i < $span.attributes.length; i++) {
-      var attr = $span.attributes.item(i);
-      // Add all attributes but not ID as this is being added to
-      // the section heading ($headingText)
-      if (attr.nodeName !== 'id') {
-        $button.setAttribute(attr.nodeName, attr.nodeValue);
+    initControls() {
+      this.$showAllButton = document.createElement('button');
+      this.$showAllButton.setAttribute('type', 'button');
+      this.$showAllButton.setAttribute('class', this.showAllClass);
+      this.$showAllButton.setAttribute('aria-expanded', 'false');
+      this.$showAllIcon = document.createElement('span');
+      this.$showAllIcon.classList.add(this.upChevronIconClass);
+      this.$showAllButton.appendChild(this.$showAllIcon);
+      const $accordionControls = document.createElement('div');
+      $accordionControls.setAttribute('class', this.controlsClass);
+      $accordionControls.appendChild(this.$showAllButton);
+      this.$root.insertBefore($accordionControls, this.$root.firstChild);
+      this.$showAllText = document.createElement('span');
+      this.$showAllText.classList.add(this.showAllTextClass);
+      this.$showAllButton.appendChild(this.$showAllText);
+      this.$showAllButton.addEventListener('click', () => this.onShowOrHideAllToggle());
+      if ('onbeforematch' in document) {
+        document.addEventListener('beforematch', event => this.onBeforeMatch(event));
       }
     }
-
-    // Create container for heading text so it can be styled
-    var $headingText = document.createElement('span');
-    $headingText.classList.add(this.sectionHeadingTextClass);
-    // Copy the span ID to the heading text to allow it to be referenced by `aria-labelledby` on the
-    // hidden content area without "Show this section"
-    $headingText.id = $span.id;
-
-    // Create an inner heading text container to limit the width of the focus state
-    var $headingTextFocus = document.createElement('span');
-    $headingTextFocus.classList.add(this.sectionHeadingTextFocusClass);
-    $headingText.appendChild($headingTextFocus);
-    // span could contain HTML elements (see https://www.w3.org/TR/2011/WD-html5-20110525/content-models.html#phrasing-content)
-    $headingTextFocus.innerHTML = $span.innerHTML;
-
-    // Create container for show / hide icons and text.
-    var $showHideToggle = document.createElement('span');
-    $showHideToggle.classList.add(this.sectionShowHideToggleClass);
-    // Tell Google not to index the 'show' text as part of the heading
-    // For the snippet to work with JavaScript, it must be added before adding the page element to the
-    // page's DOM. See https://developers.google.com/search/docs/advanced/robots/robots_meta_tag#data-nosnippet-attr
-    $showHideToggle.setAttribute('data-nosnippet', '');
-    // Create an inner container to limit the width of the focus state
-    var $showHideToggleFocus = document.createElement('span');
-    $showHideToggleFocus.classList.add(this.sectionShowHideToggleFocusClass);
-    $showHideToggle.appendChild($showHideToggleFocus);
-    // Create wrapper for the show / hide text. Append text after the show/hide icon
-    var $showHideText = document.createElement('span');
-    var $showHideIcon = document.createElement('span');
-    $showHideIcon.classList.add(this.upChevronIconClass);
-    $showHideToggleFocus.appendChild($showHideIcon);
-    $showHideText.classList.add(this.sectionShowHideTextClass);
-    $showHideToggleFocus.appendChild($showHideText);
-
-    // Append elements to the button:
-    // 1. Heading text
-    // 2. Punctuation
-    // 3. (Optional: Summary line followed by punctuation)
-    // 4. Show / hide toggle
-    $button.appendChild($headingText);
-    $button.appendChild(this.getButtonPunctuationEl());
-
-    // If summary content exists add to DOM in correct order
-    if ($summary) {
-      // Create a new `span` element and copy the summary line content from the original `div` to the
-      // new `span`
-      // This is because the summary line text is now inside a button element, which can only contain
-      // phrasing content
-      var $summarySpan = document.createElement('span');
-      // Create an inner summary container to limit the width of the summary focus state
-      var $summarySpanFocus = document.createElement('span');
-      $summarySpanFocus.classList.add(this.sectionSummaryFocusClass);
-      $summarySpan.appendChild($summarySpanFocus);
-
-      // Get original attributes, and pass them to the replacement
-      for (var j = 0, l = $summary.attributes.length; j < l; ++j) {
-        var nodeName = $summary.attributes.item(j).nodeName;
-        var nodeValue = $summary.attributes.item(j).nodeValue;
-        $summarySpan.setAttribute(nodeName, nodeValue);
+    initSectionHeaders() {
+      this.$sections.forEach(($section, i) => {
+        const $header = $section.querySelector(`.${this.sectionHeaderClass}`);
+        if (!$header) {
+          throw new ElementError({
+            component: Accordion,
+            identifier: `Section headers (\`<div class="${this.sectionHeaderClass}">\`)`
+          });
+        }
+        this.constructHeaderMarkup($header, i);
+        this.setExpanded(this.isExpanded($section), $section);
+        $header.addEventListener('click', () => this.onSectionToggle($section));
+        this.setInitialState($section);
+      });
+    }
+    constructHeaderMarkup($header, index) {
+      const $span = $header.querySelector(`.${this.sectionButtonClass}`);
+      const $heading = $header.querySelector(`.${this.sectionHeadingClass}`);
+      const $summary = $header.querySelector(`.${this.sectionSummaryClass}`);
+      if (!$heading) {
+        throw new ElementError({
+          component: Accordion,
+          identifier: `Section heading (\`.${this.sectionHeadingClass}\`)`
+        });
       }
-
-      // Copy original contents of summary to the new summary span
-      $summarySpanFocus.innerHTML = $summary.innerHTML;
-
-      // Replace the original summary `div` with the new summary `span`
-      $summary.parentNode.replaceChild($summarySpan, $summary);
-
-      $button.appendChild($summarySpan);
+      if (!$span) {
+        throw new ElementError({
+          component: Accordion,
+          identifier: `Section button placeholder (\`<span class="${this.sectionButtonClass}">\`)`
+        });
+      }
+      const $button = document.createElement('button');
+      $button.setAttribute('type', 'button');
+      $button.setAttribute('aria-controls', `${this.$root.id}-content-${index + 1}`);
+      for (const attr of Array.from($span.attributes)) {
+        if (attr.name !== 'id') {
+          $button.setAttribute(attr.name, attr.value);
+        }
+      }
+      const $headingText = document.createElement('span');
+      $headingText.classList.add(this.sectionHeadingTextClass);
+      $headingText.id = $span.id;
+      const $headingTextFocus = document.createElement('span');
+      $headingTextFocus.classList.add(this.sectionHeadingTextFocusClass);
+      $headingText.appendChild($headingTextFocus);
+      Array.from($span.childNodes).forEach($child => $headingTextFocus.appendChild($child));
+      const $showHideToggle = document.createElement('span');
+      $showHideToggle.classList.add(this.sectionShowHideToggleClass);
+      $showHideToggle.setAttribute('data-nosnippet', '');
+      const $showHideToggleFocus = document.createElement('span');
+      $showHideToggleFocus.classList.add(this.sectionShowHideToggleFocusClass);
+      $showHideToggle.appendChild($showHideToggleFocus);
+      const $showHideText = document.createElement('span');
+      const $showHideIcon = document.createElement('span');
+      $showHideIcon.classList.add(this.upChevronIconClass);
+      $showHideToggleFocus.appendChild($showHideIcon);
+      $showHideText.classList.add(this.sectionShowHideTextClass);
+      $showHideToggleFocus.appendChild($showHideText);
+      $button.appendChild($headingText);
       $button.appendChild(this.getButtonPunctuationEl());
+      if ($summary) {
+        const $summarySpan = document.createElement('span');
+        const $summarySpanFocus = document.createElement('span');
+        $summarySpanFocus.classList.add(this.sectionSummaryFocusClass);
+        $summarySpan.appendChild($summarySpanFocus);
+        for (const attr of Array.from($summary.attributes)) {
+          $summarySpan.setAttribute(attr.name, attr.value);
+        }
+        Array.from($summary.childNodes).forEach($child => $summarySpanFocus.appendChild($child));
+        $summary.remove();
+        $button.appendChild($summarySpan);
+        $button.appendChild(this.getButtonPunctuationEl());
+      }
+      $button.appendChild($showHideToggle);
+      $heading.removeChild($span);
+      $heading.appendChild($button);
+    }
+    onBeforeMatch(event) {
+      const $fragment = event.target;
+      if (!($fragment instanceof Element)) {
+        return;
+      }
+      const $section = $fragment.closest(`.${this.sectionClass}`);
+      if ($section) {
+        this.setExpanded(true, $section);
+      }
+    }
+    onSectionToggle($section) {
+      const nowExpanded = !this.isExpanded($section);
+      this.setExpanded(nowExpanded, $section);
+      this.storeState($section, nowExpanded);
+    }
+    onShowOrHideAllToggle() {
+      const nowExpanded = !this.areAllSectionsOpen();
+      this.$sections.forEach($section => {
+        this.setExpanded(nowExpanded, $section);
+        this.storeState($section, nowExpanded);
+      });
+      this.updateShowAllButton(nowExpanded);
+    }
+    setExpanded(expanded, $section) {
+      const $showHideIcon = $section.querySelector(`.${this.upChevronIconClass}`);
+      const $showHideText = $section.querySelector(`.${this.sectionShowHideTextClass}`);
+      const $button = $section.querySelector(`.${this.sectionButtonClass}`);
+      const $content = $section.querySelector(`.${this.sectionContentClass}`);
+      if (!$content) {
+        throw new ElementError({
+          component: Accordion,
+          identifier: `Section content (\`<div class="${this.sectionContentClass}">\`)`
+        });
+      }
+      if (!$showHideIcon || !$showHideText || !$button) {
+        return;
+      }
+      const newButtonText = expanded ? this.i18n.t('hideSection') : this.i18n.t('showSection');
+      $showHideText.textContent = newButtonText;
+      $button.setAttribute('aria-expanded', `${expanded}`);
+      const ariaLabelParts = [];
+      const $headingText = $section.querySelector(`.${this.sectionHeadingTextClass}`);
+      if ($headingText) {
+        ariaLabelParts.push($headingText.textContent.trim());
+      }
+      const $summary = $section.querySelector(`.${this.sectionSummaryClass}`);
+      if ($summary) {
+        ariaLabelParts.push($summary.textContent.trim());
+      }
+      const ariaLabelMessage = expanded ? this.i18n.t('hideSectionAriaLabel') : this.i18n.t('showSectionAriaLabel');
+      ariaLabelParts.push(ariaLabelMessage);
+      $button.setAttribute('aria-label', ariaLabelParts.join(' , '));
+      if (expanded) {
+        $content.removeAttribute('hidden');
+        $section.classList.add(this.sectionExpandedClass);
+        $showHideIcon.classList.remove(this.downChevronIconClass);
+      } else {
+        $content.setAttribute('hidden', 'until-found');
+        $section.classList.remove(this.sectionExpandedClass);
+        $showHideIcon.classList.add(this.downChevronIconClass);
+      }
+      this.updateShowAllButton(this.areAllSectionsOpen());
+    }
+    isExpanded($section) {
+      return $section.classList.contains(this.sectionExpandedClass);
+    }
+    areAllSectionsOpen() {
+      return Array.from(this.$sections).every($section => this.isExpanded($section));
+    }
+    updateShowAllButton(expanded) {
+      if (!this.$showAllButton || !this.$showAllText || !this.$showAllIcon) {
+        return;
+      }
+      this.$showAllButton.setAttribute('aria-expanded', expanded.toString());
+      this.$showAllText.textContent = expanded ? this.i18n.t('hideAllSections') : this.i18n.t('showAllSections');
+      this.$showAllIcon.classList.toggle(this.downChevronIconClass, !expanded);
     }
 
-    $button.appendChild($showHideToggle);
-
-    $heading.removeChild($span);
-    $heading.appendChild($button);
-  };
-
-  /**
-   * When a section is opened by the user agent via the 'beforematch' event
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Event} event - Generic event
-   */
-  Accordion.prototype.onBeforeMatch = function (event) {
-    var $fragment = event.target;
-
-    // Handle elements with `.closest()` support only
-    if (!($fragment instanceof Element)) {
-      return
-    }
-
-    // Handle when fragment is inside section
-    var $section = $fragment.closest('.' + this.sectionClass);
-    if ($section) {
-      this.setExpanded(true, $section);
-    }
-  };
-
-  /**
-   * When section toggled, set and store state
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $section - Section element
-   */
-  Accordion.prototype.onSectionToggle = function ($section) {
-    var expanded = this.isExpanded($section);
-    this.setExpanded(!expanded, $section);
-
-    // Store the state in sessionStorage when a change is triggered
-    this.storeState($section);
-  };
-
-  /**
-   * When Open/Close All toggled, set and store state
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Accordion.prototype.onShowOrHideAllToggle = function () {
-    var $component = this;
-    var $sections = this.$sections;
-
-    var nowExpanded = !this.checkIfAllSectionsOpen();
-
-    // Loop through sections
-    nodeListForEach($sections, function ($section) {
-      $component.setExpanded(nowExpanded, $section);
-      // Store the state in sessionStorage when a change is triggered
-      $component.storeState($section);
-    });
-
-    $component.updateShowAllButton(nowExpanded);
-  };
-
-  /**
-   * Set section attributes when opened/closed
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {boolean} expanded - Section expanded
-   * @param {Element} $section - Section element
-   */
-  Accordion.prototype.setExpanded = function (expanded, $section) {
-    var $showHideIcon = $section.querySelector('.' + this.upChevronIconClass);
-    var $showHideText = $section.querySelector('.' + this.sectionShowHideTextClass);
-    var $button = $section.querySelector('.' + this.sectionButtonClass);
-    var $content = $section.querySelector('.' + this.sectionContentClass);
-
-    if (!$showHideIcon ||
-      !($showHideText instanceof HTMLElement) ||
-      !$button ||
-      !$content) {
-      return
-    }
-
-    var newButtonText = expanded
-      ? this.i18n.t('hideSection')
-      : this.i18n.t('showSection');
-
-    $showHideText.innerText = newButtonText;
-    $button.setAttribute('aria-expanded', expanded.toString());
-
-    // Update aria-label combining
-    var ariaLabelParts = [];
-
-    var $headingText = $section.querySelector('.' + this.sectionHeadingTextClass);
-    if ($headingText instanceof HTMLElement) {
-      ariaLabelParts.push($headingText.innerText.trim());
-    }
-
-    var $summary = $section.querySelector('.' + this.sectionSummaryClass);
-    if ($summary instanceof HTMLElement) {
-      ariaLabelParts.push($summary.innerText.trim());
-    }
-
-    var ariaLabelMessage = expanded
-      ? this.i18n.t('hideSectionAriaLabel')
-      : this.i18n.t('showSectionAriaLabel');
-    ariaLabelParts.push(ariaLabelMessage);
-
-    /*
-     * Join with a comma to add pause for assistive technology.
-     * Example: [heading]Section A ,[pause] Show this section.
-     * https://accessibility.blog.gov.uk/2017/12/18/what-working-on-gov-uk-navigation-taught-us-about-accessibility/
-     */
-    $button.setAttribute('aria-label', ariaLabelParts.join(' , '));
-
-    // Swap icon, change class
-    if (expanded) {
-      $content.removeAttribute('hidden');
-      $section.classList.add(this.sectionExpandedClass);
-      $showHideIcon.classList.remove(this.downChevronIconClass);
-    } else {
-      $content.setAttribute('hidden', 'until-found');
-      $section.classList.remove(this.sectionExpandedClass);
-      $showHideIcon.classList.add(this.downChevronIconClass);
-    }
-
-    // See if "Show all sections" button text should be updated
-    var areAllSectionsOpen = this.checkIfAllSectionsOpen();
-    this.updateShowAllButton(areAllSectionsOpen);
-  };
-
-  /**
-   * Get state of section
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $section - Section element
-   * @returns {boolean} True if expanded
-   */
-  Accordion.prototype.isExpanded = function ($section) {
-    return $section.classList.contains(this.sectionExpandedClass)
-  };
-
-  /**
-   * Check if all sections are open
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {boolean} True if all sections are open
-   */
-  Accordion.prototype.checkIfAllSectionsOpen = function () {
-    // Get a count of all the Accordion sections
-    var sectionsCount = this.$sections.length;
-    // Get a count of all Accordion sections that are expanded
-    var expandedSectionCount = this.$module.querySelectorAll('.' + this.sectionExpandedClass).length;
-    var areAllSectionsOpen = sectionsCount === expandedSectionCount;
-
-    return areAllSectionsOpen
-  };
-
-  /**
-   * Update "Show all sections" button
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {boolean} expanded - Section expanded
-   */
-  Accordion.prototype.updateShowAllButton = function (expanded) {
-    var newButtonText = expanded
-      ? this.i18n.t('hideAllSections')
-      : this.i18n.t('showAllSections');
-
-    this.$showAllButton.setAttribute('aria-expanded', expanded.toString());
-    this.$showAllText.innerText = newButtonText;
-
-    // Swap icon, toggle class
-    if (expanded) {
-      this.$showAllIcon.classList.remove(this.downChevronIconClass);
-    } else {
-      this.$showAllIcon.classList.add(this.downChevronIconClass);
-    }
-  };
-
-  var helper = {
     /**
-     * Check for `window.sessionStorage`, and that it actually works.
+     * Get the identifier for a section
      *
-     * @returns {boolean} True if session storage is available
+     * We need a unique way of identifying each content in the Accordion.
+     * Since an `#id` should be unique and an `id` is required for `aria-`
+     * attributes `id` can be safely used.
+     *
+     * @param {Element} $section - Section element
+     * @returns {string | undefined | null} Identifier for section
      */
-    checkForSessionStorage: function () {
-      var testString = 'this is the test string';
-      var result;
-      try {
-        window.sessionStorage.setItem(testString, testString);
-        result = window.sessionStorage.getItem(testString) === testString.toString();
-        window.sessionStorage.removeItem(testString);
-        return result
-      } catch (exception) {
-        return false
+    getIdentifier($section) {
+      const $button = $section.querySelector(`.${this.sectionButtonClass}`);
+      return $button == null ? void 0 : $button.getAttribute('aria-controls');
+    }
+    storeState($section, isExpanded) {
+      if (!this.config.rememberExpanded) {
+        return;
+      }
+      const id = this.getIdentifier($section);
+      if (id) {
+        try {
+          window.sessionStorage.setItem(id, isExpanded.toString());
+        } catch (_unused) {}
       }
     }
-  };
-
-  /**
-   * Set the state of the accordions in sessionStorage
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $section - Section element
-   */
-  Accordion.prototype.storeState = function ($section) {
-    if (this.browserSupportsSessionStorage && this.config.rememberExpanded) {
-      // We need a unique way of identifying each content in the Accordion. Since
-      // an `#id` should be unique and an `id` is required for `aria-` attributes
-      // `id` can be safely used.
-      var $button = $section.querySelector('.' + this.sectionButtonClass);
-
-      if ($button) {
-        var contentId = $button.getAttribute('aria-controls');
-        var contentState = $button.getAttribute('aria-expanded');
-
-        // Only set the state when both `contentId` and `contentState` are taken from the DOM.
-        if (contentId && contentState) {
-          window.sessionStorage.setItem(contentId, contentState);
-        }
+    setInitialState($section) {
+      if (!this.config.rememberExpanded) {
+        return;
+      }
+      const id = this.getIdentifier($section);
+      if (id) {
+        try {
+          const state = window.sessionStorage.getItem(id);
+          if (state !== null) {
+            this.setExpanded(state === 'true', $section);
+          }
+        } catch (_unused2) {}
       }
     }
-  };
-
-  /**
-   * Read the state of the accordions from sessionStorage
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $section - Section element
-   */
-  Accordion.prototype.setInitialState = function ($section) {
-    if (this.browserSupportsSessionStorage && this.config.rememberExpanded) {
-      var $button = $section.querySelector('.' + this.sectionButtonClass);
-
-      if ($button) {
-        var contentId = $button.getAttribute('aria-controls');
-        var contentState = contentId ? window.sessionStorage.getItem(contentId) : null;
-
-        if (contentState !== null) {
-          this.setExpanded(contentState === 'true', $section);
-        }
-      }
+    getButtonPunctuationEl() {
+      const $punctuationEl = document.createElement('span');
+      $punctuationEl.classList.add('govuk-visually-hidden', this.sectionHeadingDividerClass);
+      $punctuationEl.textContent = ', ';
+      return $punctuationEl;
     }
-  };
-
-  /**
-   * Create an element to improve semantics of the section button with punctuation
-   *
-   * Adding punctuation to the button can also improve its general semantics by dividing its contents
-   * into thematic chunks.
-   * See https://github.com/alphagov/govuk-frontend/issues/2327#issuecomment-922957442
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {Element} DOM element
-   */
-  Accordion.prototype.getButtonPunctuationEl = function () {
-    var $punctuationEl = document.createElement('span');
-    $punctuationEl.classList.add('govuk-visually-hidden', this.sectionHeadingDividerClass);
-    $punctuationEl.innerHTML = ', ';
-    return $punctuationEl
-  };
+  }
 
   /**
    * Accordion config
    *
+   * @see {@link Accordion.defaults}
    * @typedef {object} AccordionConfig
-   * @property {AccordionTranslations} [i18n = ACCORDION_TRANSLATIONS] - See constant {@link ACCORDION_TRANSLATIONS}
+   * @property {AccordionTranslations} [i18n=Accordion.defaults.i18n] - Accordion translations
    * @property {boolean} [rememberExpanded] - Whether the expanded and collapsed
    *   state of each section is remembered and restored when navigating.
    */
@@ -2364,6 +736,7 @@
   /**
    * Accordion translations
    *
+   * @see {@link Accordion.defaults.i18n}
    * @typedef {object} AccordionTranslations
    *
    * Messages used by the component for the labels of its buttons. This includes
@@ -2383,183 +756,105 @@
    *   'Show' button's accessible name when a section is expanded.
    */
 
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+  /**
+   * @import { Schema } from '../../common/configuration.mjs'
+   */
+  Accordion.moduleName = 'govuk-accordion';
+  Accordion.defaults = Object.freeze({
+    i18n: {
+      hideAllSections: 'Hide all sections',
+      hideSection: 'Hide',
+      hideSectionAriaLabel: 'Hide this section',
+      showAllSections: 'Show all sections',
+      showSection: 'Show',
+      showSectionAriaLabel: 'Show this section'
+    },
+    rememberExpanded: true
+  });
+  Accordion.schema = Object.freeze({
+    properties: {
+      i18n: {
+        type: 'object'
+      },
+      rememberExpanded: {
+        type: 'boolean'
+      }
+    }
+  });
 
-  var KEY_SPACE = 32;
-  var DEBOUNCE_TIMEOUT_IN_SECONDS = 1;
+  const DEBOUNCE_TIMEOUT_IN_SECONDS = 1;
 
   /**
    * JavaScript enhancements for the Button component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for button
-   * @param {ButtonConfig} [config] - Button config
+   * @preserve
+   * @augments ConfigurableComponent<ButtonConfig>
    */
-  function Button ($module, config) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.debounceFormSubmitTimer = null;
-
-    var defaultConfig = {
-      preventDoubleClick: false
-    };
-
+  class Button extends ConfigurableComponent {
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {ButtonConfig}
+     * @param {Element | null} $root - HTML element to use for button
+     * @param {ButtonConfig} [config] - Button config
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      normaliseDataset($module.dataset)
-    );
-  }
-
-  /**
-   * Initialise component
-   */
-  Button.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module) {
-      return
-    }
-
-    this.$module.addEventListener('keydown', this.handleKeyDown);
-    this.$module.addEventListener('click', this.debounce.bind(this));
-  };
-
-  /**
-   * Trigger a click event when the space key is pressed
-   *
-   * Some screen readers tell users they can activate things with the 'button'
-   * role, so we need to match the functionality of native HTML buttons
-   *
-   * See https://github.com/alphagov/govuk_elements/pull/272#issuecomment-233028270
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {KeyboardEvent} event - Keydown event
-   */
-  Button.prototype.handleKeyDown = function (event) {
-    var $target = event.target;
-
-    // Handle space bar only
-    if (event.keyCode !== KEY_SPACE) {
-      return
-    }
-
-    // Handle elements with [role="button"] only
-    if ($target instanceof HTMLElement && $target.getAttribute('role') === 'button') {
-      event.preventDefault(); // prevent the page from scrolling
-      $target.click();
-    }
-  };
-
-  /**
-   * Debounce double-clicks
-   *
-   * If the click quickly succeeds a previous click then nothing will happen. This
-   * stops people accidentally causing multiple form submissions by double
-   * clicking buttons.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - Mouse click event
-   * @returns {undefined | false} Returns undefined, or false when debounced
-   */
-  Button.prototype.debounce = function (event) {
-    // Check the button that was clicked has preventDoubleClick enabled
-    if (!this.config.preventDoubleClick) {
-      return
-    }
-
-    // If the timer is still running, prevent the click from submitting the form
-    if (this.debounceFormSubmitTimer) {
-      event.preventDefault();
-      return false
-    }
-
-    this.debounceFormSubmitTimer = setTimeout(function () {
+    constructor($root, config = {}) {
+      super($root, config);
       this.debounceFormSubmitTimer = null;
-    }.bind(this), DEBOUNCE_TIMEOUT_IN_SECONDS * 1000);
-  };
+      this.$root.addEventListener('keydown', event => this.handleKeyDown(event));
+      this.$root.addEventListener('click', event => this.debounce(event));
+    }
+    handleKeyDown(event) {
+      const $target = event.target;
+      if (event.key !== ' ') {
+        return;
+      }
+      if ($target instanceof HTMLElement && $target.getAttribute('role') === 'button') {
+        event.preventDefault();
+        $target.click();
+      }
+    }
+    debounce(event) {
+      if (!this.config.preventDoubleClick) {
+        return;
+      }
+      if (this.debounceFormSubmitTimer) {
+        event.preventDefault();
+        return false;
+      }
+      this.debounceFormSubmitTimer = window.setTimeout(() => {
+        this.debounceFormSubmitTimer = null;
+      }, DEBOUNCE_TIMEOUT_IN_SECONDS * 1000);
+    }
+  }
 
   /**
    * Button config
    *
    * @typedef {object} ButtonConfig
-   * @property {boolean} [preventDoubleClick = false] - Prevent accidental double
+   * @property {boolean} [preventDoubleClick=false] - Prevent accidental double
    *   clicks on submit buttons from submitting forms multiple times.
    */
 
   /**
-   * Returns the value of the given attribute closest to the given element (including itself)
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $element - The element to start walking the DOM tree up
-   * @param {string} attributeName - The name of the attribute
-   * @returns {string | null} Attribute value
+   * @import { Schema } from '../../common/configuration.mjs'
    */
-  function closestAttributeValue ($element, attributeName) {
-    var $closestElementWithAttribute = $element.closest('[' + attributeName + ']');
-    return $closestElementWithAttribute
-      ? $closestElementWithAttribute.getAttribute(attributeName)
-      : null
+  Button.moduleName = 'govuk-button';
+  Button.defaults = Object.freeze({
+    preventDoubleClick: false
+  });
+  Button.schema = Object.freeze({
+    properties: {
+      preventDoubleClick: {
+        type: 'boolean'
+      }
+    }
+  });
+
+  function closestAttributeValue($element, attributeName) {
+    const $closestElementWithAttribute = $element.closest(`[${attributeName}]`);
+    return $closestElementWithAttribute ? $closestElementWithAttribute.getAttribute(attributeName) : null;
   }
 
-  // @ts-nocheck
-  (function (undefined) {
-
-      var detect = ('Date' in self && 'now' in self.Date && 'getTime' in self.Date.prototype);
-
-      if (detect) return
-
-      Date.now = function () {
-          return new Date().getTime();
-      };
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  /* eslint-disable es-x/no-date-now -- Polyfill imported */
-
   /**
-   * @constant
-   * @type {CharacterCountTranslations}
-   * @see Default value for {@link CharacterCountConfig.i18n}
-   * @default
-   */
-  var CHARACTER_COUNT_TRANSLATIONS = {
-    // Characters
-    charactersUnderLimit: {
-      one: 'You have %{count} character remaining',
-      other: 'You have %{count} characters remaining'
-    },
-    charactersAtLimit: 'You have 0 characters remaining',
-    charactersOverLimit: {
-      one: 'You have %{count} character too many',
-      other: 'You have %{count} characters too many'
-    },
-    // Words
-    wordsUnderLimit: {
-      one: 'You have %{count} word remaining',
-      other: 'You have %{count} words remaining'
-    },
-    wordsAtLimit: 'You have 0 words remaining',
-    wordsOverLimit: {
-      one: 'You have %{count} word too many',
-      other: 'You have %{count} words too many'
-    },
-    textareaDescription: {
-      other: ''
-    }
-  };
-
-  /**
-   * JavaScript enhancements for the CharacterCount component
+   * Character count component
    *
    * Tracks the number of characters or words in the `.govuk-js-character-count`
    * `<textarea>` inside the element. Displays a message with the remaining number
@@ -2568,414 +863,189 @@
    * You can configure the message to only appear after a certain percentage
    * of the available characters/words has been entered.
    *
-   * @class
-   * @param {Element} $module - HTML element to use for character count
-   * @param {CharacterCountConfig} [config] - Character count config
+   * @preserve
+   * @augments ConfigurableComponent<CharacterCountConfig>
    */
-  function CharacterCount ($module, config) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    var $textarea = $module.querySelector('.govuk-js-character-count');
-    if (
-      !(
-        $textarea instanceof HTMLTextAreaElement ||
-        $textarea instanceof HTMLInputElement
-      )
-    ) {
-      return this
-    }
-
-    var defaultConfig = {
-      threshold: 0,
-      i18n: CHARACTER_COUNT_TRANSLATIONS
-    };
-
-    // Read config set using dataset ('data-' values)
-    var datasetConfig = normaliseDataset($module.dataset);
-
-    // To ensure data-attributes take complete precedence, even if they change the
-    // type of count, we need to reset the `maxlength` and `maxwords` from the
-    // JavaScript config.
-    //
-    // We can't mutate `config`, though, as it may be shared across multiple
-    // components inside `initAll`.
-    var configOverrides = {};
-    if ('maxwords' in datasetConfig || 'maxlength' in datasetConfig) {
-      configOverrides = {
-        maxlength: false,
-        maxwords: false
-      };
+  class CharacterCount extends ConfigurableComponent {
+    [configOverride](datasetConfig) {
+      let configOverrides = {};
+      if ('maxwords' in datasetConfig || 'maxlength' in datasetConfig) {
+        configOverrides = {
+          maxlength: undefined,
+          maxwords: undefined
+        };
+      }
+      return configOverrides;
     }
 
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {CharacterCountConfig}
+     * @param {Element | null} $root - HTML element to use for character count
+     * @param {CharacterCountConfig} [config] - Character count config
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      configOverrides,
-      datasetConfig
-    );
-
-    /** @deprecated Will be made private in v5.0 */
-    this.i18n = new I18n(extractConfigByNamespace(this.config, 'i18n'), {
-      // Read the fallback if necessary rather than have it set in the defaults
-      locale: closestAttributeValue($module, 'lang')
-    });
-
-    /** @deprecated Will be made private in v5.0 */
-    this.maxLength = Infinity;
-    // Determine the limit attribute (characters or words)
-    if ('maxwords' in this.config && this.config.maxwords) {
-      this.maxLength = this.config.maxwords;
-    } else if ('maxlength' in this.config && this.config.maxlength) {
-      this.maxLength = this.config.maxlength;
-    } else {
-      return
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$textarea = $textarea;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$visibleCountMessage = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$screenReaderCountMessage = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.lastInputTimestamp = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.lastInputValue = '';
-
-    /** @deprecated Will be made private in v5.0 */
-    this.valueChecker = null;
-  }
-
-  /**
-   * Initialise component
-   */
-  CharacterCount.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$textarea) {
-      return
-    }
-
-    var $textarea = this.$textarea;
-    var $textareaDescription = document.getElementById($textarea.id + '-info');
-    if (!$textareaDescription) {
-      return
-    }
-
-    // Inject a description for the textarea if none is present already
-    // for when the component was rendered with no maxlength, maxwords
-    // nor custom textareaDescriptionText
-    if ($textareaDescription.innerText.match(/^\s*$/)) {
-      $textareaDescription.innerText = this.i18n.t('textareaDescription', { count: this.maxLength });
-    }
-
-    // Move the textarea description to be immediately after the textarea
-    // Kept for backwards compatibility
-    $textarea.insertAdjacentElement('afterend', $textareaDescription);
-
-    // Create the *screen reader* specific live-updating counter
-    // This doesn't need any styling classes, as it is never visible
-    var $screenReaderCountMessage = document.createElement('div');
-    $screenReaderCountMessage.className = 'govuk-character-count__sr-status govuk-visually-hidden';
-    $screenReaderCountMessage.setAttribute('aria-live', 'polite');
-    this.$screenReaderCountMessage = $screenReaderCountMessage;
-    $textareaDescription.insertAdjacentElement('afterend', $screenReaderCountMessage);
-
-    // Create our live-updating counter element, copying the classes from the
-    // textarea description for backwards compatibility as these may have been
-    // configured
-    var $visibleCountMessage = document.createElement('div');
-    $visibleCountMessage.className = $textareaDescription.className;
-    $visibleCountMessage.classList.add('govuk-character-count__status');
-    $visibleCountMessage.setAttribute('aria-hidden', 'true');
-    this.$visibleCountMessage = $visibleCountMessage;
-    $textareaDescription.insertAdjacentElement('afterend', $visibleCountMessage);
-
-    // Hide the textarea description
-    $textareaDescription.classList.add('govuk-visually-hidden');
-
-    // Remove hard limit if set
-    $textarea.removeAttribute('maxlength');
-
-    this.bindChangeEvents();
-
-    // When the page is restored after navigating 'back' in some browsers the
-    // state of the character count is not restored until *after* the
-    // DOMContentLoaded event is fired, so we need to manually update it after the
-    // pageshow event in browsers that support it.
-    window.addEventListener(
-      'onpageshow' in window ? 'pageshow' : 'DOMContentLoaded',
-      this.updateCountMessage.bind(this)
-    );
-
-    this.updateCountMessage();
-  };
-
-  /**
-   * Bind change events
-   *
-   * Set up event listeners on the $textarea so that the count messages update
-   * when the user types.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.bindChangeEvents = function () {
-    var $textarea = this.$textarea;
-    $textarea.addEventListener('keyup', this.handleKeyUp.bind(this));
-
-    // Bind focus/blur events to start/stop polling
-    $textarea.addEventListener('focus', this.handleFocus.bind(this));
-    $textarea.addEventListener('blur', this.handleBlur.bind(this));
-  };
-
-  /**
-   * Handle key up event
-   *
-   * Update the visible character counter and keep track of when the last update
-   * happened for each keypress
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.handleKeyUp = function () {
-    this.updateVisibleCountMessage();
-    this.lastInputTimestamp = Date.now();
-  };
-
-  /**
-   * Handle focus event
-   *
-   * Speech recognition software such as Dragon NaturallySpeaking will modify the
-   * fields by directly changing its `value`. These changes don't trigger events
-   * in JavaScript, so we need to poll to handle when and if they occur.
-   *
-   * Once the keyup event hasn't been detected for at least 1000 ms (1s), check if
-   * the textarea value has changed and update the count message if it has.
-   *
-   * This is so that the update triggered by the manual comparison doesn't
-   * conflict with debounced KeyboardEvent updates.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.handleFocus = function () {
-    this.valueChecker = setInterval(function () {
-      if (!this.lastInputTimestamp || (Date.now() - 500) >= this.lastInputTimestamp) {
-        this.updateIfValueChanged();
+    constructor($root, config = {}) {
+      var _ref, _this$config$maxwords;
+      super($root, config);
+      this.$textarea = void 0;
+      this.$visibleCountMessage = void 0;
+      this.$screenReaderCountMessage = void 0;
+      this.lastInputTimestamp = null;
+      this.lastInputValue = '';
+      this.valueChecker = null;
+      this.i18n = void 0;
+      this.maxLength = void 0;
+      const $textarea = this.$root.querySelector('.govuk-js-character-count');
+      if (!($textarea instanceof HTMLTextAreaElement || $textarea instanceof HTMLInputElement)) {
+        throw new ElementError({
+          component: CharacterCount,
+          element: $textarea,
+          expectedType: 'HTMLTextareaElement or HTMLInputElement',
+          identifier: 'Form field (`.govuk-js-character-count`)'
+        });
       }
-    }.bind(this), 1000);
-  };
-
-  /**
-   * Handle blur event
-   *
-   * Stop checking the textarea value once the textarea no longer has focus
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.handleBlur = function () {
-    // Cancel value checking on blur
-    clearInterval(this.valueChecker);
-  };
-
-  /**
-   * Update count message if textarea value has changed
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.updateIfValueChanged = function () {
-    if (this.$textarea.value !== this.lastInputValue) {
-      this.lastInputValue = this.$textarea.value;
+      const errors = validateConfig(CharacterCount.schema, this.config);
+      if (errors[0]) {
+        throw new ConfigError(formatErrorMessage(CharacterCount, errors[0]));
+      }
+      this.i18n = new I18n(this.config.i18n, {
+        locale: closestAttributeValue(this.$root, 'lang')
+      });
+      this.maxLength = (_ref = (_this$config$maxwords = this.config.maxwords) != null ? _this$config$maxwords : this.config.maxlength) != null ? _ref : Infinity;
+      this.$textarea = $textarea;
+      const textareaDescriptionId = `${this.$textarea.id}-info`;
+      const $textareaDescription = document.getElementById(textareaDescriptionId);
+      if (!$textareaDescription) {
+        throw new ElementError({
+          component: CharacterCount,
+          element: $textareaDescription,
+          identifier: `Count message (\`id="${textareaDescriptionId}"\`)`
+        });
+      }
+      this.$errorMessage = this.$root.querySelector('.govuk-error-message');
+      if ($textareaDescription.textContent.match(/^\s*$/)) {
+        $textareaDescription.textContent = this.i18n.t('textareaDescription', {
+          count: this.maxLength
+        });
+      }
+      this.$textarea.insertAdjacentElement('afterend', $textareaDescription);
+      const $screenReaderCountMessage = document.createElement('div');
+      $screenReaderCountMessage.className = 'govuk-character-count__sr-status govuk-visually-hidden';
+      $screenReaderCountMessage.setAttribute('aria-live', 'polite');
+      this.$screenReaderCountMessage = $screenReaderCountMessage;
+      $textareaDescription.insertAdjacentElement('afterend', $screenReaderCountMessage);
+      const $visibleCountMessage = document.createElement('div');
+      $visibleCountMessage.className = $textareaDescription.className;
+      $visibleCountMessage.classList.add('govuk-character-count__status');
+      $visibleCountMessage.setAttribute('aria-hidden', 'true');
+      this.$visibleCountMessage = $visibleCountMessage;
+      $textareaDescription.insertAdjacentElement('afterend', $visibleCountMessage);
+      $textareaDescription.classList.add('govuk-visually-hidden');
+      this.$textarea.removeAttribute('maxlength');
+      this.bindChangeEvents();
+      window.addEventListener('pageshow', () => this.updateCountMessage());
       this.updateCountMessage();
     }
-  };
-
-  /**
-   * Update count message
-   *
-   * Helper function to update both the visible and screen reader-specific
-   * counters simultaneously (e.g. on init)
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.updateCountMessage = function () {
-    this.updateVisibleCountMessage();
-    this.updateScreenReaderCountMessage();
-  };
-
-  /**
-   * Update visible count message
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.updateVisibleCountMessage = function () {
-    var $textarea = this.$textarea;
-    var $visibleCountMessage = this.$visibleCountMessage;
-    var remainingNumber = this.maxLength - this.count($textarea.value);
-
-    // If input is over the threshold, remove the disabled class which renders the
-    // counter invisible.
-    if (this.isOverThreshold()) {
-      $visibleCountMessage.classList.remove('govuk-character-count__message--disabled');
-    } else {
-      $visibleCountMessage.classList.add('govuk-character-count__message--disabled');
+    bindChangeEvents() {
+      this.$textarea.addEventListener('keyup', () => this.handleKeyUp());
+      this.$textarea.addEventListener('focus', () => this.handleFocus());
+      this.$textarea.addEventListener('blur', () => this.handleBlur());
     }
-
-    // Update styles
-    if (remainingNumber < 0) {
-      $textarea.classList.add('govuk-textarea--error');
-      $visibleCountMessage.classList.remove('govuk-hint');
-      $visibleCountMessage.classList.add('govuk-error-message');
-    } else {
-      $textarea.classList.remove('govuk-textarea--error');
-      $visibleCountMessage.classList.remove('govuk-error-message');
-      $visibleCountMessage.classList.add('govuk-hint');
+    handleKeyUp() {
+      this.updateVisibleCountMessage();
+      this.lastInputTimestamp = Date.now();
     }
-
-    // Update message
-    $visibleCountMessage.innerText = this.getCountMessage();
-  };
-
-  /**
-   * Update screen reader count message
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  CharacterCount.prototype.updateScreenReaderCountMessage = function () {
-    var $screenReaderCountMessage = this.$screenReaderCountMessage;
-
-    // If over the threshold, remove the aria-hidden attribute, allowing screen
-    // readers to announce the content of the element.
-    if (this.isOverThreshold()) {
-      $screenReaderCountMessage.removeAttribute('aria-hidden');
-    } else {
-      $screenReaderCountMessage.setAttribute('aria-hidden', 'true');
+    handleFocus() {
+      this.valueChecker = window.setInterval(() => {
+        if (!this.lastInputTimestamp || Date.now() - 500 >= this.lastInputTimestamp) {
+          this.updateIfValueChanged();
+        }
+      }, 1000);
     }
-
-    // Update message
-    $screenReaderCountMessage.innerText = this.getCountMessage();
-  };
-
-  /**
-   * Count the number of characters (or words, if `config.maxwords` is set)
-   * in the given text
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {string} text - The text to count the characters of
-   * @returns {number} the number of characters (or words) in the text
-   */
-  CharacterCount.prototype.count = function (text) {
-    if ('maxwords' in this.config && this.config.maxwords) {
-      var tokens = text.match(/\S+/g) || []; // Matches consecutive non-whitespace chars
-      return tokens.length
-    } else {
-      return text.length
+    handleBlur() {
+      if (this.valueChecker) {
+        window.clearInterval(this.valueChecker);
+      }
     }
-  };
-
-  /**
-   * Get count message
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {string} Status message
-   */
-  CharacterCount.prototype.getCountMessage = function () {
-    var remainingNumber = this.maxLength - this.count(this.$textarea.value);
-
-    var countType = 'maxwords' in this.config && this.config.maxwords ? 'words' : 'characters';
-    return this.formatCountMessage(remainingNumber, countType)
-  };
-
-  /**
-   * Formats the message shown to users according to what's counted
-   * and how many remain
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {number} remainingNumber - The number of words/characaters remaining
-   * @param {string} countType - "words" or "characters"
-   * @returns {string} Status message
-   */
-  CharacterCount.prototype.formatCountMessage = function (remainingNumber, countType) {
-    if (remainingNumber === 0) {
-      return this.i18n.t(countType + 'AtLimit')
+    updateIfValueChanged() {
+      if (this.$textarea.value !== this.lastInputValue) {
+        this.lastInputValue = this.$textarea.value;
+        this.updateCountMessage();
+      }
     }
-
-    var translationKeySuffix = remainingNumber < 0 ? 'OverLimit' : 'UnderLimit';
-
-    return this.i18n.t(countType + translationKeySuffix, { count: Math.abs(remainingNumber) })
-  };
-
-  /**
-   * Check if count is over threshold
-   *
-   * Checks whether the value is over the configured threshold for the input.
-   * If there is no configured threshold, it is set to 0 and this function will
-   * always return true.
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {boolean} true if the current count is over the config.threshold
-   *   (or no threshold is set)
-   */
-  CharacterCount.prototype.isOverThreshold = function () {
-    // No threshold means we're always above threshold so save some computation
-    if (!this.config.threshold) {
-      return true
+    updateCountMessage() {
+      this.updateVisibleCountMessage();
+      this.updateScreenReaderCountMessage();
     }
-
-    var $textarea = this.$textarea;
-
-    // Determine the remaining number of characters/words
-    var currentLength = this.count($textarea.value);
-    var maxLength = this.maxLength;
-
-    var thresholdValue = maxLength * this.config.threshold / 100;
-
-    return (thresholdValue <= currentLength)
-  };
+    updateVisibleCountMessage() {
+      const remainingNumber = this.maxLength - this.count(this.$textarea.value);
+      const isError = remainingNumber < 0;
+      this.$visibleCountMessage.classList.toggle('govuk-character-count__message--disabled', !this.isOverThreshold());
+      if (!this.$errorMessage) {
+        this.$textarea.classList.toggle('govuk-textarea--error', isError);
+      }
+      this.$visibleCountMessage.classList.toggle('govuk-error-message', isError);
+      this.$visibleCountMessage.classList.toggle('govuk-hint', !isError);
+      this.$visibleCountMessage.textContent = this.getCountMessage();
+    }
+    updateScreenReaderCountMessage() {
+      if (this.isOverThreshold()) {
+        this.$screenReaderCountMessage.removeAttribute('aria-hidden');
+      } else {
+        this.$screenReaderCountMessage.setAttribute('aria-hidden', 'true');
+      }
+      this.$screenReaderCountMessage.textContent = this.getCountMessage();
+    }
+    count(text) {
+      if (this.config.maxwords) {
+        var _text$match;
+        const tokens = (_text$match = text.match(/\S+/g)) != null ? _text$match : [];
+        return tokens.length;
+      }
+      return text.length;
+    }
+    getCountMessage() {
+      const remainingNumber = this.maxLength - this.count(this.$textarea.value);
+      const countType = this.config.maxwords ? 'words' : 'characters';
+      return this.formatCountMessage(remainingNumber, countType);
+    }
+    formatCountMessage(remainingNumber, countType) {
+      if (remainingNumber === 0) {
+        return this.i18n.t(`${countType}AtLimit`);
+      }
+      const translationKeySuffix = remainingNumber < 0 ? 'OverLimit' : 'UnderLimit';
+      return this.i18n.t(`${countType}${translationKeySuffix}`, {
+        count: Math.abs(remainingNumber)
+      });
+    }
+    isOverThreshold() {
+      if (!this.config.threshold) {
+        return true;
+      }
+      const currentLength = this.count(this.$textarea.value);
+      const maxLength = this.maxLength;
+      const thresholdValue = maxLength * this.config.threshold / 100;
+      return thresholdValue <= currentLength;
+    }
+  }
 
   /**
    * Character count config
    *
-   * @typedef {CharacterCountConfigWithMaxLength | CharacterCountConfigWithMaxWords} CharacterCountConfig
-   */
-
-  /**
-   * Character count config (with maximum number of characters)
-   *
-   * @typedef {object} CharacterCountConfigWithMaxLength
+   * @see {@link CharacterCount.defaults}
+   * @typedef {object} CharacterCountConfig
    * @property {number} [maxlength] - The maximum number of characters.
    *   If maxwords is provided, the maxlength option will be ignored.
-   * @property {number} [threshold = 0] - The percentage value of the limit at
-   *   which point the count message is displayed. If this attribute is set, the
-   *   count message will be hidden by default.
-   * @property {CharacterCountTranslations} [i18n = CHARACTER_COUNT_TRANSLATIONS] - See constant {@link CHARACTER_COUNT_TRANSLATIONS}
-   */
-
-  /**
-   * Character count config (with maximum number of words)
-   *
-   * @typedef {object} CharacterCountConfigWithMaxWords
    * @property {number} [maxwords] - The maximum number of words. If maxwords is
    *   provided, the maxlength option will be ignored.
-   * @property {number} [threshold = 0] - The percentage value of the limit at
+   * @property {number} [threshold=0] - The percentage value of the limit at
    *   which point the count message is displayed. If this attribute is set, the
    *   count message will be hidden by default.
-   * @property {CharacterCountTranslations} [i18n = CHARACTER_COUNT_TRANSLATIONS] - See constant {@link CHARACTER_COUNT_TRANSLATIONS}
+   * @property {CharacterCountTranslations} [i18n=CharacterCount.defaults.i18n] - Character count translations
    */
 
   /**
    * Character count translations
    *
+   * @see {@link CharacterCount.defaults.i18n}
    * @typedef {object} CharacterCountTranslations
    *
    * Messages shown to users as they type. It provides feedback on how many words
@@ -3020,984 +1090,445 @@
    */
 
   /**
-   * @typedef {import('../../i18n.mjs').TranslationPluralForms} TranslationPluralForms
+   * @import { Schema } from '../../common/configuration.mjs'
+   * @import { TranslationPluralForms } from '../../i18n.mjs'
    */
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+  CharacterCount.moduleName = 'govuk-character-count';
+  CharacterCount.defaults = Object.freeze({
+    threshold: 0,
+    i18n: {
+      charactersUnderLimit: {
+        one: 'You have %{count} character remaining',
+        other: 'You have %{count} characters remaining'
+      },
+      charactersAtLimit: 'You have 0 characters remaining',
+      charactersOverLimit: {
+        one: 'You have %{count} character too many',
+        other: 'You have %{count} characters too many'
+      },
+      wordsUnderLimit: {
+        one: 'You have %{count} word remaining',
+        other: 'You have %{count} words remaining'
+      },
+      wordsAtLimit: 'You have 0 words remaining',
+      wordsOverLimit: {
+        one: 'You have %{count} word too many',
+        other: 'You have %{count} words too many'
+      },
+      textareaDescription: {
+        other: ''
+      }
+    }
+  });
+  CharacterCount.schema = Object.freeze({
+    properties: {
+      i18n: {
+        type: 'object'
+      },
+      maxwords: {
+        type: 'number'
+      },
+      maxlength: {
+        type: 'number'
+      },
+      threshold: {
+        type: 'number'
+      }
+    },
+    anyOf: [{
+      required: ['maxwords'],
+      errorMessage: 'Either "maxlength" or "maxwords" must be provided'
+    }, {
+      required: ['maxlength'],
+      errorMessage: 'Either "maxlength" or "maxwords" must be provided'
+    }]
+  });
 
   /**
    * Checkboxes component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for checkboxes
+   * @preserve
    */
-  function Checkboxes ($module) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    var $inputs = $module.querySelectorAll('input[type="checkbox"]');
-    if (!$inputs.length) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$inputs = $inputs;
-  }
-
-  /**
-   * Initialise component
-   *
-   * Checkboxes can be associated with a 'conditionally revealed' content block –
-   * for example, a checkbox for 'Phone' could reveal an additional form field for
-   * the user to enter their phone number.
-   *
-   * These associations are made using a `data-aria-controls` attribute, which is
-   * promoted to an aria-controls attribute during initialisation.
-   *
-   * We also need to restore the state of any conditional reveals on the page (for
-   * example if the user has navigated back), and set up event handlers to keep
-   * the reveal in sync with the checkbox state.
-   */
-  Checkboxes.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$inputs) {
-      return
-    }
-
-    var $module = this.$module;
-    var $inputs = this.$inputs;
-
-    nodeListForEach($inputs, function ($input) {
-      var targetId = $input.getAttribute('data-aria-controls');
-
-      // Skip checkboxes without data-aria-controls attributes, or where the
-      // target element does not exist.
-      if (!targetId || !document.getElementById(targetId)) {
-        return
-      }
-
-      // Promote the data-aria-controls attribute to a aria-controls attribute
-      // so that the relationship is exposed in the AOM
-      $input.setAttribute('aria-controls', targetId);
-      $input.removeAttribute('data-aria-controls');
-    });
-
-    // When the page is restored after navigating 'back' in some browsers the
-    // state of form controls is not restored until *after* the DOMContentLoaded
-    // event is fired, so we need to sync after the pageshow event in browsers
-    // that support it.
-    window.addEventListener(
-      'onpageshow' in window ? 'pageshow' : 'DOMContentLoaded',
-      this.syncAllConditionalReveals.bind(this)
-    );
-
-    // Although we've set up handlers to sync state on the pageshow or
-    // DOMContentLoaded event, init could be called after those events have fired,
-    // for example if they are added to the page dynamically, so sync now too.
-    this.syncAllConditionalReveals();
-
-    // Handle events
-    $module.addEventListener('click', this.handleClick.bind(this));
-  };
-
-  /**
-   * Sync the conditional reveal states for all checkboxes in this $module.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Checkboxes.prototype.syncAllConditionalReveals = function () {
-    nodeListForEach(this.$inputs, this.syncConditionalRevealWithInputState.bind(this));
-  };
-
-  /**
-   * Sync conditional reveal with the input state
-   *
-   * Synchronise the visibility of the conditional reveal, and its accessible
-   * state, with the input's checked state.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLInputElement} $input - Checkbox input
-   */
-  Checkboxes.prototype.syncConditionalRevealWithInputState = function ($input) {
-    var targetId = $input.getAttribute('aria-controls');
-    if (!targetId) {
-      return
-    }
-
-    var $target = document.getElementById(targetId);
-    if ($target && $target.classList.contains('govuk-checkboxes__conditional')) {
-      var inputIsChecked = $input.checked;
-
-      $input.setAttribute('aria-expanded', inputIsChecked.toString());
-      $target.classList.toggle('govuk-checkboxes__conditional--hidden', !inputIsChecked);
-    }
-  };
-
-  /**
-   * Uncheck other checkboxes
-   *
-   * Find any other checkbox inputs with the same name value, and uncheck them.
-   * This is useful for when a “None of these" checkbox is checked.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLInputElement} $input - Checkbox input
-   */
-  Checkboxes.prototype.unCheckAllInputsExcept = function ($input) {
-    var $component = this;
-
-    /** @type {NodeListOf<HTMLInputElement>} */
-    // @ts-expect-error `NodeListOf<HTMLInputElement>` type expected
-    var allInputsWithSameName = document.querySelectorAll(
-      'input[type="checkbox"][name="' + $input.name + '"]'
-    );
-
-    nodeListForEach(allInputsWithSameName, function ($inputWithSameName) {
-      var hasSameFormOwner = ($input.form === $inputWithSameName.form);
-      if (hasSameFormOwner && $inputWithSameName !== $input) {
-        $inputWithSameName.checked = false;
-        $component.syncConditionalRevealWithInputState($inputWithSameName);
-      }
-    });
-  };
-
-  /**
-   * Uncheck exclusive checkboxes
-   *
-   * Find any checkbox inputs with the same name value and the 'exclusive' behaviour,
-   * and uncheck them. This helps prevent someone checking both a regular checkbox and a
-   * "None of these" checkbox in the same fieldset.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLInputElement} $input - Checkbox input
-   */
-  Checkboxes.prototype.unCheckExclusiveInputs = function ($input) {
-    var $component = this;
-
-    /** @type {NodeListOf<HTMLInputElement>} */
-    // @ts-expect-error `NodeListOf<HTMLInputElement>` type expected
-    var allInputsWithSameNameAndExclusiveBehaviour = document.querySelectorAll(
-      'input[data-behaviour="exclusive"][type="checkbox"][name="' + $input.name + '"]'
-    );
-
-    nodeListForEach(allInputsWithSameNameAndExclusiveBehaviour, function ($exclusiveInput) {
-      var hasSameFormOwner = ($input.form === $exclusiveInput.form);
-      if (hasSameFormOwner) {
-        $exclusiveInput.checked = false;
-        $component.syncConditionalRevealWithInputState($exclusiveInput);
-      }
-    });
-  };
-
-  /**
-   * Click event handler
-   *
-   * Handle a click within the $module – if the click occurred on a checkbox, sync
-   * the state of any associated conditional reveal with the checkbox state.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - Click event
-   */
-  Checkboxes.prototype.handleClick = function (event) {
-    var $clickedInput = event.target;
-
-    // Ignore clicks on things that aren't checkbox inputs
-    if (!($clickedInput instanceof HTMLInputElement) || $clickedInput.type !== 'checkbox') {
-      return
-    }
-
-    // If the checkbox conditionally-reveals some content, sync the state
-    var hasAriaControls = $clickedInput.getAttribute('aria-controls');
-    if (hasAriaControls) {
-      this.syncConditionalRevealWithInputState($clickedInput);
-    }
-
-    // No further behaviour needed for unchecking
-    if (!$clickedInput.checked) {
-      return
-    }
-
-    // Handle 'exclusive' checkbox behaviour (ie "None of these")
-    var hasBehaviourExclusive = ($clickedInput.getAttribute('data-behaviour') === 'exclusive');
-    if (hasBehaviourExclusive) {
-      this.unCheckAllInputsExcept($clickedInput);
-    } else {
-      this.unCheckExclusiveInputs($clickedInput);
-    }
-  };
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
-
-  var KEY_ENTER = 13;
-  var KEY_SPACE$1 = 32;
-
-  /**
-   * Details component
-   *
-   * @class
-   * @param {Element} $module - HTML element to use for details
-   */
-  function Details ($module) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$summary = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$content = null;
-  }
-
-  /**
-   * Initialise component
-   */
-  Details.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module) {
-      return
-    }
-
-    // If there is native details support, we want to avoid running code to polyfill native behaviour.
-    var hasNativeDetails = 'HTMLDetailsElement' in window &&
-      this.$module instanceof HTMLDetailsElement;
-
-    if (!hasNativeDetails) {
-      this.polyfillDetails();
-    }
-  };
-
-  /**
-   * Polyfill component in older browsers
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Details.prototype.polyfillDetails = function () {
-    var $module = this.$module;
-
-    // Save shortcuts to the inner summary and content elements
-    var $summary = this.$summary = $module.getElementsByTagName('summary').item(0);
-    var $content = this.$content = $module.getElementsByTagName('div').item(0);
-
-    // If <details> doesn't have a <summary> and a <div> representing the content
-    // it means the required HTML structure is not met so the script will stop
-    if (!$summary || !$content) {
-      return
-    }
-
-    // If the content doesn't have an ID, assign it one now
-    // which we'll need for the summary's aria-controls assignment
-    if (!$content.id) {
-      $content.id = 'details-content-' + generateUniqueID();
-    }
-
-    // Add ARIA role="group" to details
-    $module.setAttribute('role', 'group');
-
-    // Add role=button to summary
-    $summary.setAttribute('role', 'button');
-
-    // Add aria-controls
-    $summary.setAttribute('aria-controls', $content.id);
-
-    // Set tabIndex so the summary is keyboard accessible for non-native elements
-    //
-    // We have to use the camelcase `tabIndex` property as there is a bug in IE6/IE7 when we set the correct attribute lowercase:
-    // See http://web.archive.org/web/20170120194036/http://www.saliences.com/browserBugs/tabIndex.html for more information.
-    $summary.tabIndex = 0;
-
-    // Detect initial open state
-    if (this.$module.hasAttribute('open')) {
-      $summary.setAttribute('aria-expanded', 'true');
-    } else {
-      $summary.setAttribute('aria-expanded', 'false');
-      $content.style.display = 'none';
-    }
-
-    // Bind an event to handle summary elements
-    this.polyfillHandleInputs(this.polyfillSetAttributes.bind(this));
-  };
-
-  /**
-   * Define a statechange function that updates aria-expanded and style.display
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {boolean} Returns true
-   */
-  Details.prototype.polyfillSetAttributes = function () {
-    if (this.$module.hasAttribute('open')) {
-      this.$module.removeAttribute('open');
-      this.$summary.setAttribute('aria-expanded', 'false');
-      this.$content.style.display = 'none';
-    } else {
-      this.$module.setAttribute('open', 'open');
-      this.$summary.setAttribute('aria-expanded', 'true');
-      this.$content.style.display = '';
-    }
-
-    return true
-  };
-
-  /**
-   * Handle cross-modal click events
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {polyfillHandleInputsCallback} callback - function
-   */
-  Details.prototype.polyfillHandleInputs = function (callback) {
-    this.$summary.addEventListener('keypress', function (event) {
-      var $target = event.target;
-      // When the key gets pressed - check if it is enter or space
-      if (event.keyCode === KEY_ENTER || event.keyCode === KEY_SPACE$1) {
-        if ($target instanceof HTMLElement && $target.nodeName.toLowerCase() === 'summary') {
-          // Prevent space from scrolling the page
-          // and enter from submitting a form
-          event.preventDefault();
-          // Click to let the click event do all the necessary action
-          if ($target.click) {
-            $target.click();
-          } else {
-            // except Safari 5.1 and under don't support .click() here
-            callback(event);
-          }
-        }
-      }
-    });
-
-    // Prevent keyup to prevent clicking twice in Firefox when using space key
-    this.$summary.addEventListener('keyup', function (event) {
-      var $target = event.target;
-      if (event.keyCode === KEY_SPACE$1) {
-        if ($target instanceof HTMLElement && $target.nodeName.toLowerCase() === 'summary') {
-          event.preventDefault();
-        }
-      }
-    });
-
-    this.$summary.addEventListener('click', callback);
-  };
-
-  /**
-   * @callback polyfillHandleInputsCallback
-   * @param {UIEvent} event - Keyboard or mouse event
-   * @returns {void}
-   */
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
-
-  /**
-   * JavaScript enhancements for the ErrorSummary
-   *
-   * Takes focus on initialisation for accessible announcement, unless disabled in configuration.
-   *
-   * @class
-   * @param {Element} $module - HTML element to use for error summary
-   * @param {ErrorSummaryConfig} [config] - Error summary config
-   */
-  function ErrorSummary ($module, config) {
-    // Some consuming code may not be passing a module,
-    // for example if they initialise the component
-    // on their own by directly passing the result
-    // of `document.querySelector`.
-    // To avoid breaking further JavaScript initialisation
-    // we need to safeguard against this so things keep
-    // working the same now we read the elements data attributes
-    if (!($module instanceof HTMLElement)) {
-      // Little safety in case code gets ported as-is
-      // into and ES6 class constructor, where the return value matters
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    var defaultConfig = {
-      disableAutoFocus: false
-    };
-
+  class Checkboxes extends Component {
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {ErrorSummaryConfig}
+     * Checkboxes can be associated with a 'conditionally revealed' content block
+     * – for example, a checkbox for 'Phone' could reveal an additional form field
+     * for the user to enter their phone number.
+     *
+     * These associations are made using a `data-aria-controls` attribute, which
+     * is promoted to an aria-controls attribute during initialisation.
+     *
+     * We also need to restore the state of any conditional reveals on the page
+     * (for example if the user has navigated back), and set up event handlers to
+     * keep the reveal in sync with the checkbox state.
+     *
+     * @param {Element | null} $root - HTML element to use for checkboxes
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      normaliseDataset($module.dataset)
-    );
-  }
-
-  /**
-   * Initialise component
-   */
-  ErrorSummary.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module) {
-      return
-    }
-
-    var $module = this.$module;
-
-    this.setFocus();
-    $module.addEventListener('click', this.handleClick.bind(this));
-  };
-
-  /**
-   * Focus the error summary
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ErrorSummary.prototype.setFocus = function () {
-    var $module = this.$module;
-
-    if (this.config.disableAutoFocus) {
-      return
-    }
-
-    // Set tabindex to -1 to make the element programmatically focusable, but
-    // remove it on blur as the error summary doesn't need to be focused again.
-    $module.setAttribute('tabindex', '-1');
-
-    $module.addEventListener('blur', function () {
-      $module.removeAttribute('tabindex');
-    });
-
-    $module.focus();
-  };
-
-  /**
-   * Click event handler
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - Click event
-   */
-  ErrorSummary.prototype.handleClick = function (event) {
-    var $target = event.target;
-    if (this.focusTarget($target)) {
-      event.preventDefault();
-    }
-  };
-
-  /**
-   * Focus the target element
-   *
-   * By default, the browser will scroll the target into view. Because our labels
-   * or legends appear above the input, this means the user will be presented with
-   * an input without any context, as the label or legend will be off the top of
-   * the screen.
-   *
-   * Manually handling the click event, scrolling the question into view and then
-   * focussing the element solves this.
-   *
-   * This also results in the label and/or legend being announced correctly in
-   * NVDA (as tested in 2018.3.2) - without this only the field type is announced
-   * (e.g. "Edit, has autocomplete").
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {EventTarget} $target - Event target
-   * @returns {boolean} True if the target was able to be focussed
-   */
-  ErrorSummary.prototype.focusTarget = function ($target) {
-    // If the element that was clicked was not a link, return early
-    if (!($target instanceof HTMLAnchorElement)) {
-      return false
-    }
-
-    var inputId = this.getFragmentFromUrl($target.href);
-    if (!inputId) {
-      return false
-    }
-
-    var $input = document.getElementById(inputId);
-    if (!$input) {
-      return false
-    }
-
-    var $legendOrLabel = this.getAssociatedLegendOrLabel($input);
-    if (!$legendOrLabel) {
-      return false
-    }
-
-    // Scroll the legend or label into view *before* calling focus on the input to
-    // avoid extra scrolling in browsers that don't support `preventScroll` (which
-    // at time of writing is most of them...)
-    $legendOrLabel.scrollIntoView();
-    $input.focus({ preventScroll: true });
-
-    return true
-  };
-
-  /**
-   * Get fragment from URL
-   *
-   * Extract the fragment (everything after the hash) from a URL, but not including
-   * the hash.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {string} url - URL
-   * @returns {string | undefined} Fragment from URL, without the hash
-   */
-  ErrorSummary.prototype.getFragmentFromUrl = function (url) {
-    if (url.indexOf('#') === -1) {
-      return undefined
-    }
-
-    return url.split('#').pop()
-  };
-
-  /**
-   * Get associated legend or label
-   *
-   * Returns the first element that exists from this list:
-   *
-   * - The `<legend>` associated with the closest `<fieldset>` ancestor, as long
-   *   as the top of it is no more than half a viewport height away from the
-   *   bottom of the input
-   * - The first `<label>` that is associated with the input using for="inputId"
-   * - The closest parent `<label>`
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {Element} $input - The input
-   * @returns {Element | null} Associated legend or label, or null if no associated
-   *   legend or label can be found
-   */
-  ErrorSummary.prototype.getAssociatedLegendOrLabel = function ($input) {
-    var $fieldset = $input.closest('fieldset');
-
-    if ($fieldset) {
-      var $legends = $fieldset.getElementsByTagName('legend');
-
-      if ($legends.length) {
-        var $candidateLegend = $legends[0];
-
-        // If the input type is radio or checkbox, always use the legend if there
-        // is one.
-        if ($input instanceof HTMLInputElement && ($input.type === 'checkbox' || $input.type === 'radio')) {
-          return $candidateLegend
+    constructor($root) {
+      super($root);
+      this.$inputs = void 0;
+      const $inputs = this.$root.querySelectorAll('input[type="checkbox"]');
+      if (!$inputs.length) {
+        throw new ElementError({
+          component: Checkboxes,
+          identifier: 'Form inputs (`<input type="checkbox">`)'
+        });
+      }
+      this.$inputs = $inputs;
+      this.$inputs.forEach($input => {
+        const targetId = $input.getAttribute('data-aria-controls');
+        if (!targetId) {
+          return;
         }
+        if (!document.getElementById(targetId)) {
+          throw new ElementError({
+            component: Checkboxes,
+            identifier: `Conditional reveal (\`id="${targetId}"\`)`
+          });
+        }
+        $input.setAttribute('aria-controls', targetId);
+        $input.removeAttribute('data-aria-controls');
+      });
+      window.addEventListener('pageshow', () => this.syncAllConditionalReveals());
+      this.syncAllConditionalReveals();
+      this.$root.addEventListener('click', event => this.handleClick(event));
+    }
+    syncAllConditionalReveals() {
+      this.$inputs.forEach($input => this.syncConditionalRevealWithInputState($input));
+    }
+    syncConditionalRevealWithInputState($input) {
+      const targetId = $input.getAttribute('aria-controls');
+      if (!targetId) {
+        return;
+      }
+      const $target = document.getElementById(targetId);
+      if ($target != null && $target.classList.contains('govuk-checkboxes__conditional')) {
+        const inputIsChecked = $input.checked;
+        $input.setAttribute('aria-expanded', inputIsChecked.toString());
+        $target.classList.toggle('govuk-checkboxes__conditional--hidden', !inputIsChecked);
+      }
+    }
+    unCheckAllInputsExcept($input) {
+      const allInputsWithSameName = document.querySelectorAll(`input[type="checkbox"][name="${$input.name}"]`);
+      allInputsWithSameName.forEach($inputWithSameName => {
+        const hasSameFormOwner = $input.form === $inputWithSameName.form;
+        if (hasSameFormOwner && $inputWithSameName !== $input) {
+          $inputWithSameName.checked = false;
+          this.syncConditionalRevealWithInputState($inputWithSameName);
+        }
+      });
+    }
+    unCheckExclusiveInputs($input) {
+      const allInputsWithSameNameAndExclusiveBehaviour = document.querySelectorAll(`input[data-behaviour="exclusive"][type="checkbox"][name="${$input.name}"]`);
+      allInputsWithSameNameAndExclusiveBehaviour.forEach($exclusiveInput => {
+        const hasSameFormOwner = $input.form === $exclusiveInput.form;
+        if (hasSameFormOwner) {
+          $exclusiveInput.checked = false;
+          this.syncConditionalRevealWithInputState($exclusiveInput);
+        }
+      });
+    }
+    handleClick(event) {
+      const $clickedInput = event.target;
+      if (!($clickedInput instanceof HTMLInputElement) || $clickedInput.type !== 'checkbox') {
+        return;
+      }
+      const hasAriaControls = $clickedInput.getAttribute('aria-controls');
+      if (hasAriaControls) {
+        this.syncConditionalRevealWithInputState($clickedInput);
+      }
+      if (!$clickedInput.checked) {
+        return;
+      }
+      const hasBehaviourExclusive = $clickedInput.getAttribute('data-behaviour') === 'exclusive';
+      if (hasBehaviourExclusive) {
+        this.unCheckAllInputsExcept($clickedInput);
+      } else {
+        this.unCheckExclusiveInputs($clickedInput);
+      }
+    }
+  }
+  Checkboxes.moduleName = 'govuk-checkboxes';
 
-        // For other input types, only scroll to the fieldset’s legend (instead of
-        // the label associated with the input) if the input would end up in the
-        // top half of the screen.
-        //
-        // This should avoid situations where the input either ends up off the
-        // screen, or obscured by a software keyboard.
-        var legendTop = $candidateLegend.getBoundingClientRect().top;
-        var inputRect = $input.getBoundingClientRect();
-
-        // If the browser doesn't support Element.getBoundingClientRect().height
-        // or window.innerHeight (like IE8), bail and just link to the label.
-        if (inputRect.height && window.innerHeight) {
-          var inputBottom = inputRect.top + inputRect.height;
-
-          if (inputBottom - legendTop < window.innerHeight / 2) {
-            return $candidateLegend
+  /**
+   * Error summary component
+   *
+   * Takes focus on initialisation for accessible announcement, unless disabled in
+   * configuration.
+   *
+   * @preserve
+   * @augments ConfigurableComponent<ErrorSummaryConfig>
+   */
+  class ErrorSummary extends ConfigurableComponent {
+    /**
+     * @param {Element | null} $root - HTML element to use for error summary
+     * @param {ErrorSummaryConfig} [config] - Error summary config
+     */
+    constructor($root, config = {}) {
+      super($root, config);
+      if (!this.config.disableAutoFocus) {
+        setFocus(this.$root);
+      }
+      this.$root.addEventListener('click', event => this.handleClick(event));
+    }
+    handleClick(event) {
+      const $target = event.target;
+      if ($target && this.focusTarget($target)) {
+        event.preventDefault();
+      }
+    }
+    focusTarget($target) {
+      if (!($target instanceof HTMLAnchorElement)) {
+        return false;
+      }
+      const inputId = $target.hash.replace('#', '');
+      if (!inputId) {
+        return false;
+      }
+      const $input = document.getElementById(inputId);
+      if (!$input) {
+        return false;
+      }
+      const $legendOrLabel = this.getAssociatedLegendOrLabel($input);
+      if (!$legendOrLabel) {
+        return false;
+      }
+      $legendOrLabel.scrollIntoView();
+      $input.focus({
+        preventScroll: true
+      });
+      return true;
+    }
+    getAssociatedLegendOrLabel($input) {
+      var _document$querySelect;
+      const $fieldset = $input.closest('fieldset');
+      if ($fieldset) {
+        const $legends = $fieldset.getElementsByTagName('legend');
+        if ($legends.length) {
+          const $candidateLegend = $legends[0];
+          if ($input instanceof HTMLInputElement && ($input.type === 'checkbox' || $input.type === 'radio')) {
+            return $candidateLegend;
+          }
+          const legendTop = $candidateLegend.getBoundingClientRect().top;
+          const inputRect = $input.getBoundingClientRect();
+          if (inputRect.height && window.innerHeight) {
+            const inputBottom = inputRect.top + inputRect.height;
+            if (inputBottom - legendTop < window.innerHeight / 2) {
+              return $candidateLegend;
+            }
           }
         }
       }
+      return (_document$querySelect = document.querySelector(`label[for='${$input.getAttribute('id')}']`)) != null ? _document$querySelect : $input.closest('label');
     }
-
-    return document.querySelector("label[for='" + $input.getAttribute('id') + "']") ||
-      $input.closest('label')
-  };
+  }
 
   /**
    * Error summary config
    *
    * @typedef {object} ErrorSummaryConfig
-   * @property {boolean} [disableAutoFocus = false] - If set to `true` the error
+   * @property {boolean} [disableAutoFocus=false] - If set to `true` the error
    *   summary will not be focussed when the page loads.
    */
 
-  // Implementation of common function is gathered in the `common` folder
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
-
   /**
-   * @constant
-   * @type {ExitThisPageTranslations}
-   * @see Default value for {@link ExitThisPageConfig.i18n}
-   * @default
+   * @import { Schema } from '../../common/configuration.mjs'
    */
-  var EXIT_THIS_PAGE_TRANSLATIONS = {
-    activated: 'Loading.',
-    timedOut: 'Exit this page expired.',
-    pressTwoMoreTimes: 'Shift, press 2 more times to exit.',
-    pressOneMoreTime: 'Shift, press 1 more time to exit.'
-  };
+  ErrorSummary.moduleName = 'govuk-error-summary';
+  ErrorSummary.defaults = Object.freeze({
+    disableAutoFocus: false
+  });
+  ErrorSummary.schema = Object.freeze({
+    properties: {
+      disableAutoFocus: {
+        type: 'boolean'
+      }
+    }
+  });
 
   /**
-   * Exit This Page component
+   * Exit this page component
    *
-   * @class
-   * @param {HTMLElement} $module - HTML element that wraps the Exit This Page button
-   * @param {ExitThisPageConfig} [config] - Exit This Page config
+   * @preserve
+   * @augments ConfigurableComponent<ExitThisPageConfig>
    */
-  function ExitThisPage ($module, config) {
-    /** @type {ExitThisPageConfig} */
-    var defaultConfig = {
-      i18n: EXIT_THIS_PAGE_TRANSLATIONS
-    };
-
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    var $button = $module.querySelector('.govuk-exit-this-page__button');
-    if (!($button instanceof HTMLElement)) {
-      return this
-    }
-
+  class ExitThisPage extends ConfigurableComponent {
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {ExitThisPageConfig}
+     * @param {Element | null} $root - HTML element that wraps the Exit This Page button
+     * @param {ExitThisPageConfig} [config] - Exit This Page config
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      normaliseDataset($module.dataset)
-    );
-
-    this.i18n = new I18n(extractConfigByNamespace(this.config, 'i18n'));
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$button = $button;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$skiplinkButton = document.querySelector('.govuk-js-exit-this-page-skiplink');
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$updateSpan = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$indicatorContainer = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$overlay = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.keypressCounter = 0;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.lastKeyWasModified = false;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.timeoutTime = 5000; // milliseconds
-
-    // Store the timeout events so that we can clear them to avoid user keypresses overlapping
-    // setTimeout returns an id that we can use to clear it with clearTimeout,
-    // hence the 'Id' suffix
-
-    /** @deprecated Will be made private in v5.0 */
-    this.keypressTimeoutId = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.timeoutMessageId = null;
-  }
-
-  /**
-   * Create the <span> we use for screen reader announcements.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.initUpdateSpan = function () {
-    this.$updateSpan = document.createElement('span');
-    this.$updateSpan.setAttribute('role', 'status');
-    this.$updateSpan.className = 'govuk-visually-hidden';
-
-    this.$module.appendChild(this.$updateSpan);
-  };
-
-  /**
-   * Create button click handlers.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.initButtonClickHandler = function () {
-    // Main EtP button
-    this.$button.addEventListener('click', this.handleClick.bind(this));
-
-    // EtP skiplink
-    if (this.$skiplinkButton) {
-      this.$skiplinkButton.addEventListener('click', this.handleClick.bind(this));
-    }
-  };
-
-  /**
-   * Create the HTML for the 'three lights' indicator on the button.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.buildIndicator = function () {
-    // Build container
-    // Putting `aria-hidden` on it as it won't contain any readable information
-    this.$indicatorContainer = document.createElement('div');
-    this.$indicatorContainer.className = 'govuk-exit-this-page__indicator';
-    this.$indicatorContainer.setAttribute('aria-hidden', 'true');
-
-    // Create three 'lights' and place them within the container
-    for (var i = 0; i < 3; i++) {
-      var $indicator = document.createElement('div');
-      $indicator.className = 'govuk-exit-this-page__indicator-light';
-      this.$indicatorContainer.appendChild($indicator);
-    }
-
-    // Append it all to the module
-    this.$button.appendChild(this.$indicatorContainer);
-  };
-
-  /**
-   * Update whether the lights are visible and which ones are lit up depending on
-   * the value of `keypressCounter`.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.updateIndicator = function () {
-    // Show or hide the indicator container depending on keypressCounter value
-    if (this.keypressCounter > 0) {
-      this.$indicatorContainer.classList.add('govuk-exit-this-page__indicator--visible');
-    } else {
-      this.$indicatorContainer.classList.remove('govuk-exit-this-page__indicator--visible');
-    }
-
-    // Turn on only the indicators we want on
-    var $indicators = this.$indicatorContainer.querySelectorAll(
-      '.govuk-exit-this-page__indicator-light'
-    );
-    nodeListForEach($indicators, function ($indicator, index) {
-      $indicator.classList.toggle(
-        'govuk-exit-this-page__indicator-light--on',
-        index < this.keypressCounter
-      );
-    }.bind(this));
-  };
-
-  /**
-   * Initiates the redirection away from the current page.
-   * Includes the loading overlay functionality, which covers the current page with a
-   * white overlay so that the contents are not visible during the loading
-   * process. This is particularly important on slow network connections.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.exitPage = function () {
-    this.$updateSpan.innerText = '';
-
-    // Blank the page
-    // As well as creating an overlay with text, we also set the body to hidden
-    // to prevent screen reader and sequential navigation users potentially
-    // navigating through the page behind the overlay during loading
-    document.body.classList.add('govuk-exit-this-page-hide-content');
-    this.$overlay = document.createElement('div');
-    this.$overlay.className = 'govuk-exit-this-page-overlay';
-    this.$overlay.setAttribute('role', 'alert');
-
-    // we do these this way round, thus incurring a second paint, because changing
-    // the element text after adding it means that screen readers pick up the
-    // announcement more reliably.
-    document.body.appendChild(this.$overlay);
-    this.$overlay.innerText = this.i18n.t('activated');
-
-    window.location.href = this.$button.getAttribute('href');
-  };
-
-  /**
-   * Pre-activation logic for when the button is clicked/activated via mouse or
-   * pointer.
-   *
-   * We do this to differentiate it from the keyboard activation event because we
-   * need to run `e.preventDefault` as the button or skiplink are both links and we
-   * want to apply some additional logic in `exitPage` before navigating.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - mouse click event
-   */
-  ExitThisPage.prototype.handleClick = function (event) {
-    event.preventDefault();
-    this.exitPage();
-  };
-
-  /**
-   * Logic for the 'quick escape' keyboard sequence functionality (pressing the
-   * Shift key three times without interruption, within a time limit).
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {KeyboardEvent} event - keyup event
-   */
-  ExitThisPage.prototype.handleKeypress = function (event) {
-    // Detect if the 'Shift' key has been pressed. We want to only do things if it
-    // was pressed by itself and not in a combination with another key—so we keep
-    // track of whether the preceding keyup had shiftKey: true on it, and if it
-    // did, we ignore the next Shift keyup event.
-    //
-    // This works because using Shift as a modifier key (e.g. pressing Shift + A)
-    // will fire TWO keyup events, one for A (with e.shiftKey: true) and the other
-    // for Shift (with e.shiftKey: false).
-    if (
-      (event.key === 'Shift' || event.keyCode === 16 || event.which === 16) &&
-      !this.lastKeyWasModified
-    ) {
-      this.keypressCounter += 1;
-
-      // Update the indicator before the below if statement can reset it back to 0
-      this.updateIndicator();
-
-      // Clear the timeout for the keypress timeout message clearing itself
-      if (this.timeoutMessageId !== null) {
-        clearTimeout(this.timeoutMessageId);
-        this.timeoutMessageId = null;
-      }
-
-      if (this.keypressCounter >= 3) {
-        this.keypressCounter = 0;
-
-        if (this.keypressTimeoutId !== null) {
-          clearTimeout(this.keypressTimeoutId);
-          this.keypressTimeoutId = null;
-        }
-
-        this.exitPage();
-      } else {
-        if (this.keypressCounter === 1) {
-          this.$updateSpan.innerText = this.i18n.t('pressTwoMoreTimes');
-        } else {
-          this.$updateSpan.innerText = this.i18n.t('pressOneMoreTime');
-        }
-      }
-
-      this.setKeypressTimer();
-    } else if (this.keypressTimeoutId !== null) {
-      // If the user pressed any key other than 'Shift', after having pressed
-      // 'Shift' and activating the timer, stop and reset the timer.
-      this.resetKeypressTimer();
-    }
-
-    // Keep track of whether the Shift modifier key was held during this keypress
-    this.lastKeyWasModified = event.shiftKey;
-  };
-
-  /**
-   * Starts the 'quick escape' keyboard sequence timer.
-   *
-   * This can be invoked several times. We want this to be possible so that the
-   * timer is restarted each time the shortcut key is pressed (e.g. the user has
-   * up to n seconds between each keypress, rather than n seconds to invoke the
-   * entire sequence.)
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.setKeypressTimer = function () {
-    // Clear any existing timeout. This is so only one timer is running even if
-    // there are multiple keypresses in quick succession.
-    clearTimeout(this.keypressTimeoutId);
-
-    // Set a fresh timeout
-    this.keypressTimeoutId = setTimeout(
-      this.resetKeypressTimer.bind(this),
-      this.timeoutTime
-    );
-  };
-
-  /**
-   * Stops and resets the 'quick escape' keyboard sequence timer.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.resetKeypressTimer = function () {
-    clearTimeout(this.keypressTimeoutId);
-    this.keypressTimeoutId = null;
-
-    this.keypressCounter = 0;
-    this.$updateSpan.innerText = this.i18n.t('timedOut');
-
-    this.timeoutMessageId = setTimeout(function () {
-      this.$updateSpan.innerText = '';
-    }.bind(this), this.timeoutTime);
-
-    this.updateIndicator();
-  };
-
-  /**
-   * Reset the page using the EtP button
-   *
-   * We use this in situations where a user may re-enter a page using the browser
-   * back button. In these cases, the browser can choose to restore the state of
-   * the page as it was previously, including restoring the 'ghost page' overlay,
-   * the announcement span having it's role set to "alert" and the keypress
-   * indicator still active, leaving the page in an unusable state.
-   *
-   * By running this check when the page is shown, we can programatically restore
-   * the page and the component to a "default" state
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  ExitThisPage.prototype.resetPage = function () {
-    // If an overlay is set, remove it and reset the value
-    document.body.classList.remove('govuk-exit-this-page-hide-content');
-
-    if (this.$overlay) {
-      this.$overlay.remove();
+    constructor($root, config = {}) {
+      super($root, config);
+      this.i18n = void 0;
+      this.$button = void 0;
+      this.$skiplinkButton = null;
+      this.$updateSpan = null;
+      this.$indicatorContainer = null;
       this.$overlay = null;
+      this.keypressCounter = 0;
+      this.lastKeyWasModified = false;
+      this.timeoutTime = 5000;
+      this.keypressTimeoutId = null;
+      this.timeoutMessageId = null;
+      const $button = this.$root.querySelector('.govuk-exit-this-page__button');
+      if (!($button instanceof HTMLAnchorElement)) {
+        throw new ElementError({
+          component: ExitThisPage,
+          element: $button,
+          expectedType: 'HTMLAnchorElement',
+          identifier: 'Button (`.govuk-exit-this-page__button`)'
+        });
+      }
+      this.i18n = new I18n(this.config.i18n);
+      this.$button = $button;
+      const $skiplinkButton = document.querySelector('.govuk-js-exit-this-page-skiplink');
+      if ($skiplinkButton instanceof HTMLAnchorElement) {
+        this.$skiplinkButton = $skiplinkButton;
+      }
+      this.buildIndicator();
+      this.initUpdateSpan();
+      this.initButtonClickHandler();
+      if (!('govukFrontendExitThisPageKeypress' in document.body.dataset)) {
+        document.addEventListener('keyup', this.handleKeypress.bind(this), true);
+        document.body.dataset.govukFrontendExitThisPageKeypress = 'true';
+      }
+      window.addEventListener('pageshow', this.resetPage.bind(this));
     }
-
-    // Ensure the announcement span's role is status, not alert and clear any text
-    this.$updateSpan.setAttribute('role', 'status');
-    this.$updateSpan.innerText = '';
-
-    // Sync the keypress indicator lights
-    this.updateIndicator();
-
-    // If the timeouts are active, clear them
-    if (this.keypressTimeoutId) {
-      clearTimeout(this.keypressTimeoutId);
+    initUpdateSpan() {
+      this.$updateSpan = document.createElement('span');
+      this.$updateSpan.setAttribute('role', 'status');
+      this.$updateSpan.className = 'govuk-visually-hidden';
+      this.$root.appendChild(this.$updateSpan);
     }
-
-    if (this.timeoutMessageId) {
-      clearTimeout(this.timeoutMessageId);
+    initButtonClickHandler() {
+      this.$button.addEventListener('click', this.handleClick.bind(this));
+      if (this.$skiplinkButton) {
+        this.$skiplinkButton.addEventListener('click', this.handleClick.bind(this));
+      }
     }
-  };
-
-  /**
-   * Initialise component
-   */
-  ExitThisPage.prototype.init = function () {
-    this.buildIndicator();
-    this.initUpdateSpan();
-    this.initButtonClickHandler();
-
-    // Check to see if this has already been done by a previous initialisation of ExitThisPage
-    if (!('govukFrontendExitThisPageKeypress' in document.body.dataset)) {
-      document.addEventListener('keyup', this.handleKeypress.bind(this), true);
-      document.body.dataset.govukFrontendExitThisPageKeypress = 'true';
+    buildIndicator() {
+      this.$indicatorContainer = document.createElement('div');
+      this.$indicatorContainer.className = 'govuk-exit-this-page__indicator';
+      this.$indicatorContainer.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < 3; i++) {
+        const $indicator = document.createElement('div');
+        $indicator.className = 'govuk-exit-this-page__indicator-light';
+        this.$indicatorContainer.appendChild($indicator);
+      }
+      this.$button.appendChild(this.$indicatorContainer);
     }
-
-    // When the page is restored after navigating 'back' in some browsers the
-    // blank overlay remains present, rendering the page unusable. Here, we check
-    // to see if it's present on page (re)load, and remove it if so.
-    window.addEventListener(
-      'onpageshow' in window ? 'pageshow' : 'DOMContentLoaded',
-      this.resetPage.bind(this)
-    );
-  };
+    updateIndicator() {
+      if (!this.$indicatorContainer) {
+        return;
+      }
+      this.$indicatorContainer.classList.toggle('govuk-exit-this-page__indicator--visible', this.keypressCounter > 0);
+      const $indicators = this.$indicatorContainer.querySelectorAll('.govuk-exit-this-page__indicator-light');
+      $indicators.forEach(($indicator, index) => {
+        $indicator.classList.toggle('govuk-exit-this-page__indicator-light--on', index < this.keypressCounter);
+      });
+    }
+    exitPage() {
+      if (!this.$updateSpan) {
+        return;
+      }
+      this.$updateSpan.textContent = '';
+      document.body.classList.add('govuk-exit-this-page-hide-content');
+      this.$overlay = document.createElement('div');
+      this.$overlay.className = 'govuk-exit-this-page-overlay';
+      this.$overlay.setAttribute('role', 'alert');
+      document.body.appendChild(this.$overlay);
+      this.$overlay.textContent = this.i18n.t('activated');
+      window.location.href = this.$button.href;
+    }
+    handleClick(event) {
+      event.preventDefault();
+      this.exitPage();
+    }
+    handleKeypress(event) {
+      if (!this.$updateSpan) {
+        return;
+      }
+      if (event.key === 'Shift' && !this.lastKeyWasModified) {
+        this.keypressCounter += 1;
+        this.updateIndicator();
+        if (this.timeoutMessageId) {
+          window.clearTimeout(this.timeoutMessageId);
+          this.timeoutMessageId = null;
+        }
+        if (this.keypressCounter >= 3) {
+          this.keypressCounter = 0;
+          if (this.keypressTimeoutId) {
+            window.clearTimeout(this.keypressTimeoutId);
+            this.keypressTimeoutId = null;
+          }
+          this.exitPage();
+        } else {
+          if (this.keypressCounter === 1) {
+            this.$updateSpan.textContent = this.i18n.t('pressTwoMoreTimes');
+          } else {
+            this.$updateSpan.textContent = this.i18n.t('pressOneMoreTime');
+          }
+        }
+        this.setKeypressTimer();
+      } else if (this.keypressTimeoutId) {
+        this.resetKeypressTimer();
+      }
+      this.lastKeyWasModified = event.shiftKey;
+    }
+    setKeypressTimer() {
+      if (this.keypressTimeoutId) {
+        window.clearTimeout(this.keypressTimeoutId);
+      }
+      this.keypressTimeoutId = window.setTimeout(this.resetKeypressTimer.bind(this), this.timeoutTime);
+    }
+    resetKeypressTimer() {
+      if (!this.$updateSpan) {
+        return;
+      }
+      if (this.keypressTimeoutId) {
+        window.clearTimeout(this.keypressTimeoutId);
+        this.keypressTimeoutId = null;
+      }
+      const $updateSpan = this.$updateSpan;
+      this.keypressCounter = 0;
+      $updateSpan.textContent = this.i18n.t('timedOut');
+      this.timeoutMessageId = window.setTimeout(() => {
+        $updateSpan.textContent = '';
+      }, this.timeoutTime);
+      this.updateIndicator();
+    }
+    resetPage() {
+      document.body.classList.remove('govuk-exit-this-page-hide-content');
+      if (this.$overlay) {
+        this.$overlay.remove();
+        this.$overlay = null;
+      }
+      if (this.$updateSpan) {
+        this.$updateSpan.setAttribute('role', 'status');
+        this.$updateSpan.textContent = '';
+      }
+      this.updateIndicator();
+      if (this.keypressTimeoutId) {
+        window.clearTimeout(this.keypressTimeoutId);
+      }
+      if (this.timeoutMessageId) {
+        window.clearTimeout(this.timeoutMessageId);
+      }
+    }
+  }
 
   /**
    * Exit this Page config
    *
+   * @see {@link ExitThisPage.defaults}
    * @typedef {object} ExitThisPageConfig
-   * @property {ExitThisPageTranslations} [i18n = EXIT_THIS_PAGE_TRANSLATIONS] - See constant {@link EXIT_THIS_PAGE_TRANSLATIONS}
+   * @property {ExitThisPageTranslations} [i18n=ExitThisPage.defaults.i18n] - Exit this page translations
    */
 
   /**
    * Exit this Page translations
    *
+   * @see {@link ExitThisPage.defaults.i18n}
    * @typedef {object} ExitThisPageTranslations
    *
    * Messages used by the component programatically inserted text, including
@@ -4012,1024 +1543,1058 @@
    *   the user they must press the activation key one more time.
    */
 
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+  /**
+   * @import { Schema } from '../../common/configuration.mjs'
+   */
+  ExitThisPage.moduleName = 'govuk-exit-this-page';
+  ExitThisPage.defaults = Object.freeze({
+    i18n: {
+      activated: 'Loading.',
+      timedOut: 'Exit this page expired.',
+      pressTwoMoreTimes: 'Shift, press 2 more times to exit.',
+      pressOneMoreTime: 'Shift, press 1 more time to exit.'
+    }
+  });
+  ExitThisPage.schema = Object.freeze({
+    properties: {
+      i18n: {
+        type: 'object'
+      }
+    }
+  });
+
+  /**
+   * File upload component
+   *
+   * @preserve
+   * @augments ConfigurableComponent<FileUploadConfig>
+   */
+  class FileUpload extends ConfigurableComponent {
+    /**
+     * @param {Element | null} $root - File input element
+     * @param {FileUploadConfig} [config] - File Upload config
+     */
+    constructor($root, config = {}) {
+      super($root, config);
+      this.$input = void 0;
+      this.$button = void 0;
+      this.$status = void 0;
+      this.i18n = void 0;
+      this.id = void 0;
+      this.$announcements = void 0;
+      this.enteredAnotherElement = void 0;
+      const $input = this.$root.querySelector('input');
+      if ($input === null) {
+        throw new ElementError({
+          component: FileUpload,
+          identifier: 'File inputs (`<input type="file">`)'
+        });
+      }
+      if ($input.type !== 'file') {
+        throw new ElementError(formatErrorMessage(FileUpload, 'File input (`<input type="file">`) attribute (`type`) is not `file`'));
+      }
+      this.$input = $input;
+      if (!this.$input.id) {
+        throw new ElementError({
+          component: FileUpload,
+          identifier: 'File input (`<input type="file">`) attribute (`id`)'
+        });
+      }
+      this.id = this.$input.id;
+      this.i18n = new I18n(this.config.i18n, {
+        locale: closestAttributeValue(this.$root, 'lang')
+      });
+      const $label = this.findLabel();
+      if (!$label.id) {
+        $label.id = `${this.id}-label`;
+      }
+      this.$input.id = `${this.id}-input`;
+      this.$input.setAttribute('hidden', 'true');
+      const $button = document.createElement('button');
+      $button.classList.add('govuk-file-upload-button');
+      $button.type = 'button';
+      $button.id = this.id;
+      $button.classList.add('govuk-file-upload-button--empty');
+      const ariaDescribedBy = this.$input.getAttribute('aria-describedby');
+      if (ariaDescribedBy) {
+        $button.setAttribute('aria-describedby', ariaDescribedBy);
+      }
+      const $status = document.createElement('span');
+      $status.className = 'govuk-body govuk-file-upload-button__status';
+      $status.setAttribute('aria-live', 'polite');
+      $status.innerText = this.i18n.t('noFileChosen');
+      $button.appendChild($status);
+      const commaSpan = document.createElement('span');
+      commaSpan.className = 'govuk-visually-hidden';
+      commaSpan.innerText = ', ';
+      commaSpan.id = `${this.id}-comma`;
+      $button.appendChild(commaSpan);
+      const containerSpan = document.createElement('span');
+      containerSpan.className = 'govuk-file-upload-button__pseudo-button-container';
+      const buttonSpan = document.createElement('span');
+      buttonSpan.className = 'govuk-button govuk-button--secondary govuk-file-upload-button__pseudo-button';
+      buttonSpan.innerText = this.i18n.t('chooseFilesButton');
+      containerSpan.appendChild(buttonSpan);
+      containerSpan.insertAdjacentText('beforeend', ' ');
+      const instructionSpan = document.createElement('span');
+      instructionSpan.className = 'govuk-body govuk-file-upload-button__instruction';
+      instructionSpan.innerText = this.i18n.t('dropInstruction');
+      containerSpan.appendChild(instructionSpan);
+      $button.appendChild(containerSpan);
+      $button.setAttribute('aria-labelledby', `${$label.id} ${commaSpan.id} ${$button.id}`);
+      $button.addEventListener('click', this.onClick.bind(this));
+      $button.addEventListener('dragover', event => {
+        event.preventDefault();
+      });
+      this.$root.insertAdjacentElement('afterbegin', $button);
+      this.$input.setAttribute('tabindex', '-1');
+      this.$input.setAttribute('aria-hidden', 'true');
+      this.$button = $button;
+      this.$status = $status;
+      this.$input.addEventListener('change', this.onChange.bind(this));
+      this.updateDisabledState();
+      this.observeDisabledState();
+      this.$announcements = document.createElement('span');
+      this.$announcements.classList.add('govuk-file-upload-announcements');
+      this.$announcements.classList.add('govuk-visually-hidden');
+      this.$announcements.setAttribute('aria-live', 'assertive');
+      this.$root.insertAdjacentElement('afterend', this.$announcements);
+      this.$button.addEventListener('drop', this.onDrop.bind(this));
+      document.addEventListener('dragenter', this.updateDropzoneVisibility.bind(this));
+      document.addEventListener('dragenter', () => {
+        this.enteredAnotherElement = true;
+      });
+      document.addEventListener('dragleave', () => {
+        if (!this.enteredAnotherElement && !this.$button.disabled) {
+          this.hideDraggingState();
+          this.$announcements.innerText = this.i18n.t('leftDropZone');
+        }
+        this.enteredAnotherElement = false;
+      });
+    }
+    updateDropzoneVisibility(event) {
+      if (this.$button.disabled) return;
+      if (event.target instanceof Node) {
+        if (this.$root.contains(event.target)) {
+          if (event.dataTransfer && this.canDrop(event.dataTransfer)) {
+            if (!this.$button.classList.contains('govuk-file-upload-button--dragging')) {
+              this.showDraggingState();
+              this.$announcements.innerText = this.i18n.t('enteredDropZone');
+            }
+          }
+        } else {
+          if (this.$button.classList.contains('govuk-file-upload-button--dragging')) {
+            this.hideDraggingState();
+            this.$announcements.innerText = this.i18n.t('leftDropZone');
+          }
+        }
+      }
+    }
+    showDraggingState() {
+      this.$button.classList.add('govuk-file-upload-button--dragging');
+    }
+    hideDraggingState() {
+      this.$button.classList.remove('govuk-file-upload-button--dragging');
+    }
+    onDrop(event) {
+      event.preventDefault();
+      if (event.dataTransfer && this.canFillInput(event.dataTransfer)) {
+        this.$input.files = event.dataTransfer.files;
+        this.$input.dispatchEvent(new CustomEvent('change'));
+        this.hideDraggingState();
+      }
+    }
+    canFillInput(dataTransfer) {
+      return this.matchesInputCapacity(dataTransfer.files.length);
+    }
+    canDrop(dataTransfer) {
+      if (dataTransfer.items.length) {
+        return this.matchesInputCapacity(countFileItems(dataTransfer.items));
+      }
+      if (dataTransfer.types.length) {
+        return dataTransfer.types.includes('Files');
+      }
+      return true;
+    }
+    matchesInputCapacity(numberOfFiles) {
+      if (this.$input.multiple) {
+        return numberOfFiles > 0;
+      }
+      return numberOfFiles === 1;
+    }
+    onChange() {
+      const fileCount = this.$input.files.length;
+      if (fileCount === 0) {
+        this.$status.innerText = this.i18n.t('noFileChosen');
+        this.$button.classList.add('govuk-file-upload-button--empty');
+      } else {
+        if (fileCount === 1) {
+          this.$status.innerText = this.$input.files[0].name;
+        } else {
+          this.$status.innerText = this.i18n.t('multipleFilesChosen', {
+            count: fileCount
+          });
+        }
+        this.$button.classList.remove('govuk-file-upload-button--empty');
+      }
+    }
+    findLabel() {
+      const $label = document.querySelector(`label[for="${this.$input.id}"]`);
+      if (!$label) {
+        throw new ElementError({
+          component: FileUpload,
+          identifier: `Field label (\`<label for=${this.$input.id}>\`)`
+        });
+      }
+      return $label;
+    }
+    onClick() {
+      this.$input.click();
+    }
+    observeDisabledState() {
+      const observer = new MutationObserver(mutationList => {
+        for (const mutation of mutationList) {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'disabled') {
+            this.updateDisabledState();
+          }
+        }
+      });
+      observer.observe(this.$input, {
+        attributes: true
+      });
+    }
+    updateDisabledState() {
+      this.$button.disabled = this.$input.disabled;
+      this.$root.classList.toggle('govuk-drop-zone--disabled', this.$button.disabled);
+    }
+  }
+
+  /**
+   * Counts the number of `DataTransferItem` whose kind is `file`
+   *
+   * @param {DataTransferItemList} list - The list
+   * @returns {number} - The number of items whose kind is `file` in the list
+   */
+  FileUpload.moduleName = 'govuk-file-upload';
+  FileUpload.defaults = Object.freeze({
+    i18n: {
+      chooseFilesButton: 'Choose file',
+      dropInstruction: 'or drop file',
+      noFileChosen: 'No file chosen',
+      multipleFilesChosen: {
+        one: '%{count} file chosen',
+        other: '%{count} files chosen'
+      },
+      enteredDropZone: 'Entered drop zone',
+      leftDropZone: 'Left drop zone'
+    }
+  });
+  FileUpload.schema = Object.freeze({
+    properties: {
+      i18n: {
+        type: 'object'
+      }
+    }
+  });
+  function countFileItems(list) {
+    let result = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].kind === 'file') {
+        result++;
+      }
+    }
+    return result;
+  }
+
+  /**
+   * @typedef {HTMLInputElement & {files: FileList}} HTMLFileInputElement
+   */
+
+  /**
+   * File upload config
+   *
+   * @see {@link FileUpload.defaults}
+   * @typedef {object} FileUploadConfig
+   * @property {FileUploadTranslations} [i18n=FileUpload.defaults.i18n] - File upload translations
+   */
+
+  /**
+   * File upload translations
+   *
+   * @see {@link FileUpload.defaults.i18n}
+   * @typedef {object} FileUploadTranslations
+   *
+   * Messages used by the component
+   * @property {string} [chooseFile] - The text of the button that opens the file picker
+   * @property {string} [dropInstruction] - The text informing users they can drop files
+   * @property {TranslationPluralForms} [multipleFilesChosen] - The text displayed when multiple files
+   *   have been chosen by the user
+   * @property {string} [noFileChosen] - The text to displayed when no file has been chosen by the user
+   * @property {string} [enteredDropZone] - The text announced by assistive technology
+   *   when user drags files and enters the drop zone
+   * @property {string} [leftDropZone] - The text announced by assistive technology
+   *   when user drags files and leaves the drop zone without dropping
+   */
+
+  /**
+   * @import { Schema } from '../../common/configuration.mjs'
+   * @import { TranslationPluralForms } from '../../i18n.mjs'
+   */
 
   /**
    * Header component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for header
+   * @preserve
    */
-  function Header ($module) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$menuButton = $module.querySelector('.govuk-js-header-toggle');
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$menu = this.$menuButton && $module.querySelector(
-      '#' + this.$menuButton.getAttribute('aria-controls')
-    );
-
+  class Header extends Component {
     /**
-     * Save the opened/closed state for the nav in memory so that we can
-     * accurately maintain state when the screen is changed from small to
-     * big and back to small
+     * Apply a matchMedia for desktop which will trigger a state sync if the
+     * browser viewport moves between states.
      *
-     * @deprecated Will be made private in v5.0
+     * @param {Element | null} $root - HTML element to use for header
      */
-    this.menuIsOpen = false;
-
-    /**
-     * A global const for storing a matchMedia instance which we'll use to
-     * detect when a screen size change happens. We set this later during the
-     * init function and rely on it being null if the feature isn't available
-     * to initially apply hidden attributes
-     *
-     * @deprecated Will be made private in v5.0
-     */
-    this.mql = null;
-  }
-
-  /**
-   * Initialise component
-   *
-   * Check for the presence of the header, menu and menu button – if any are
-   * missing then there's nothing to do so return early.
-   * Feature sniff for and apply a matchMedia for desktop which will
-   * trigger a state sync if the browser viewport moves between states. If
-   * matchMedia isn't available, hide the menu button and present the "no js"
-   * version of the menu to the user.
-   */
-  Header.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$menuButton || !this.$menu) {
-      return
+    constructor($root) {
+      super($root);
+      this.$menuButton = void 0;
+      this.$menu = void 0;
+      this.menuIsOpen = false;
+      this.mql = null;
+      const $menuButton = this.$root.querySelector('.govuk-js-header-toggle');
+      if (!$menuButton) {
+        return this;
+      }
+      this.$root.classList.add('govuk-header--with-js-navigation');
+      const menuId = $menuButton.getAttribute('aria-controls');
+      if (!menuId) {
+        throw new ElementError({
+          component: Header,
+          identifier: 'Navigation button (`<button class="govuk-js-header-toggle">`) attribute (`aria-controls`)'
+        });
+      }
+      const $menu = document.getElementById(menuId);
+      if (!$menu) {
+        throw new ElementError({
+          component: Header,
+          element: $menu,
+          identifier: `Navigation (\`<ul id="${menuId}">\`)`
+        });
+      }
+      this.$menu = $menu;
+      this.$menuButton = $menuButton;
+      this.setupResponsiveChecks();
+      this.$menuButton.addEventListener('click', () => this.handleMenuButtonClick());
     }
-
-    if ('matchMedia' in window) {
-      // Set the matchMedia to the govuk-frontend desktop breakpoint
-      this.mql = window.matchMedia('(min-width: 48.0625em)');
-
+    setupResponsiveChecks() {
+      const breakpoint = getBreakpoint('desktop');
+      if (!breakpoint.value) {
+        throw new ElementError({
+          component: Header,
+          identifier: `CSS custom property (\`${breakpoint.property}\`) on pseudo-class \`:root\``
+        });
+      }
+      this.mql = window.matchMedia(`(min-width: ${breakpoint.value})`);
       if ('addEventListener' in this.mql) {
-        this.mql.addEventListener('change', this.syncState.bind(this));
+        this.mql.addEventListener('change', () => this.checkMode());
       } else {
-        // addListener is a deprecated function, however addEventListener
-        // isn't supported by IE or Safari < 14. We therefore add this in as
-        // a fallback for those browsers
-        // @ts-expect-error Property 'addListener' does not exist
-        this.mql.addListener(this.syncState.bind(this));
+        this.mql.addListener(() => this.checkMode());
       }
-
-      this.syncState();
-      this.$menuButton.addEventListener('click', this.handleMenuButtonClick.bind(this));
-    } else {
-      this.$menuButton.setAttribute('hidden', '');
+      this.checkMode();
     }
-  };
-
-  /**
-   * Sync menu state
-   *
-   * Uses the global variable menuIsOpen to correctly set the accessible and
-   * visual states of the menu and the menu button.
-   * Additionally will force the menu to be visible and the menu button to be
-   * hidden if the matchMedia is triggered to desktop.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Header.prototype.syncState = function () {
-    if (this.mql.matches) {
-      this.$menu.removeAttribute('hidden');
-      this.$menuButton.setAttribute('hidden', '');
-    } else {
-      this.$menuButton.removeAttribute('hidden');
-      this.$menuButton.setAttribute('aria-expanded', this.menuIsOpen.toString());
-
-      if (this.menuIsOpen) {
+    checkMode() {
+      if (!this.mql || !this.$menu || !this.$menuButton) {
+        return;
+      }
+      if (this.mql.matches) {
         this.$menu.removeAttribute('hidden');
+        this.$menuButton.setAttribute('hidden', '');
       } else {
-        this.$menu.setAttribute('hidden', '');
+        this.$menuButton.removeAttribute('hidden');
+        this.$menuButton.setAttribute('aria-expanded', this.menuIsOpen.toString());
+        if (this.menuIsOpen) {
+          this.$menu.removeAttribute('hidden');
+        } else {
+          this.$menu.setAttribute('hidden', '');
+        }
       }
     }
-  };
-
-  /**
-   * Handle menu button click
-   *
-   * When the menu button is clicked, change the visibility of the menu and then
-   * sync the accessibility state and menu button state
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Header.prototype.handleMenuButtonClick = function () {
-    this.menuIsOpen = !this.menuIsOpen;
-    this.syncState();
-  };
+    handleMenuButtonClick() {
+      this.menuIsOpen = !this.menuIsOpen;
+      this.checkMode();
+    }
+  }
+  Header.moduleName = 'govuk-header';
 
   /**
    * Notification Banner component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for notification banner
-   * @param {NotificationBannerConfig} [config] - Notification banner config
+   * @preserve
+   * @augments ConfigurableComponent<NotificationBannerConfig>
    */
-  function NotificationBanner ($module, config) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    var defaultConfig = {
-      disableAutoFocus: false
-    };
-
+  class NotificationBanner extends ConfigurableComponent {
     /**
-     * @deprecated Will be made private in v5.0
-     * @type {NotificationBannerConfig}
+     * @param {Element | null} $root - HTML element to use for notification banner
+     * @param {NotificationBannerConfig} [config] - Notification banner config
      */
-    this.config = mergeConfigs(
-      defaultConfig,
-      config || {},
-      normaliseDataset($module.dataset)
-    );
+    constructor($root, config = {}) {
+      super($root, config);
+      if (this.$root.getAttribute('role') === 'alert' && !this.config.disableAutoFocus) {
+        setFocus(this.$root);
+      }
+    }
   }
-
-  /**
-   * Initialise component
-   */
-  NotificationBanner.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module) {
-      return
-    }
-
-    this.setFocus();
-  };
-
-  /**
-   * Focus the element
-   *
-   * If `role="alert"` is set, focus the element to help some assistive technologies
-   * prioritise announcing it.
-   *
-   * You can turn off the auto-focus functionality by setting `data-disable-auto-focus="true"` in the
-   * component HTML. You might wish to do this based on user research findings, or to avoid a clash
-   * with another element which should be focused when the page loads.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  NotificationBanner.prototype.setFocus = function () {
-    var $module = this.$module;
-
-    if (this.config.disableAutoFocus) {
-      return
-    }
-
-    if ($module.getAttribute('role') !== 'alert') {
-      return
-    }
-
-    // Set tabindex to -1 to make the element focusable with JavaScript.
-    // Remove the tabindex on blur as the component doesn't need to be focusable after the page has
-    // loaded.
-    if (!$module.getAttribute('tabindex')) {
-      $module.setAttribute('tabindex', '-1');
-
-      $module.addEventListener('blur', function () {
-        $module.removeAttribute('tabindex');
-      });
-    }
-
-    $module.focus();
-  };
 
   /**
    * Notification banner config
    *
    * @typedef {object} NotificationBannerConfig
-   * @property {boolean} [disableAutoFocus = false] - If set to `true` the
+   * @property {boolean} [disableAutoFocus=false] - If set to `true` the
    *   notification banner will not be focussed when the page loads. This only
    *   applies if the component has a `role` of `alert` – in other cases the
    *   component will not be focused on page load, regardless of this option.
    */
 
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+  /**
+   * @import { Schema } from '../../common/configuration.mjs'
+   */
+  NotificationBanner.moduleName = 'govuk-notification-banner';
+  NotificationBanner.defaults = Object.freeze({
+    disableAutoFocus: false
+  });
+  NotificationBanner.schema = Object.freeze({
+    properties: {
+      disableAutoFocus: {
+        type: 'boolean'
+      }
+    }
+  });
+
+  /**
+   * Password input component
+   *
+   * @preserve
+   * @augments ConfigurableComponent<PasswordInputConfig>
+   */
+  class PasswordInput extends ConfigurableComponent {
+    /**
+     * @param {Element | null} $root - HTML element to use for password input
+     * @param {PasswordInputConfig} [config] - Password input config
+     */
+    constructor($root, config = {}) {
+      super($root, config);
+      this.i18n = void 0;
+      this.$input = void 0;
+      this.$showHideButton = void 0;
+      this.$screenReaderStatusMessage = void 0;
+      const $input = this.$root.querySelector('.govuk-js-password-input-input');
+      if (!($input instanceof HTMLInputElement)) {
+        throw new ElementError({
+          component: PasswordInput,
+          element: $input,
+          expectedType: 'HTMLInputElement',
+          identifier: 'Form field (`.govuk-js-password-input-input`)'
+        });
+      }
+      if ($input.type !== 'password') {
+        throw new ElementError('Password input: Form field (`.govuk-js-password-input-input`) must be of type `password`.');
+      }
+      const $showHideButton = this.$root.querySelector('.govuk-js-password-input-toggle');
+      if (!($showHideButton instanceof HTMLButtonElement)) {
+        throw new ElementError({
+          component: PasswordInput,
+          element: $showHideButton,
+          expectedType: 'HTMLButtonElement',
+          identifier: 'Button (`.govuk-js-password-input-toggle`)'
+        });
+      }
+      if ($showHideButton.type !== 'button') {
+        throw new ElementError('Password input: Button (`.govuk-js-password-input-toggle`) must be of type `button`.');
+      }
+      this.$input = $input;
+      this.$showHideButton = $showHideButton;
+      this.i18n = new I18n(this.config.i18n, {
+        locale: closestAttributeValue(this.$root, 'lang')
+      });
+      this.$showHideButton.removeAttribute('hidden');
+      const $screenReaderStatusMessage = document.createElement('div');
+      $screenReaderStatusMessage.className = 'govuk-password-input__sr-status govuk-visually-hidden';
+      $screenReaderStatusMessage.setAttribute('aria-live', 'polite');
+      this.$screenReaderStatusMessage = $screenReaderStatusMessage;
+      this.$input.insertAdjacentElement('afterend', $screenReaderStatusMessage);
+      this.$showHideButton.addEventListener('click', this.toggle.bind(this));
+      if (this.$input.form) {
+        this.$input.form.addEventListener('submit', () => this.hide());
+      }
+      window.addEventListener('pageshow', event => {
+        if (event.persisted && this.$input.type !== 'password') {
+          this.hide();
+        }
+      });
+      this.hide();
+    }
+    toggle(event) {
+      event.preventDefault();
+      if (this.$input.type === 'password') {
+        this.show();
+        return;
+      }
+      this.hide();
+    }
+    show() {
+      this.setType('text');
+    }
+    hide() {
+      this.setType('password');
+    }
+    setType(type) {
+      if (type === this.$input.type) {
+        return;
+      }
+      this.$input.setAttribute('type', type);
+      const isHidden = type === 'password';
+      const prefixButton = isHidden ? 'show' : 'hide';
+      const prefixStatus = isHidden ? 'passwordHidden' : 'passwordShown';
+      this.$showHideButton.innerText = this.i18n.t(`${prefixButton}Password`);
+      this.$showHideButton.setAttribute('aria-label', this.i18n.t(`${prefixButton}PasswordAriaLabel`));
+      this.$screenReaderStatusMessage.innerText = this.i18n.t(`${prefixStatus}Announcement`);
+    }
+  }
+
+  /**
+   * Password input config
+   *
+   * @typedef {object} PasswordInputConfig
+   * @property {PasswordInputTranslations} [i18n=PasswordInput.defaults.i18n] - Password input translations
+   */
+
+  /**
+   * Password input translations
+   *
+   * @see {@link PasswordInput.defaults.i18n}
+   * @typedef {object} PasswordInputTranslations
+   *
+   * Messages displayed to the user indicating the state of the show/hide toggle.
+   * @property {string} [showPassword] - Visible text of the button when the
+   *   password is currently hidden. Plain text only.
+   * @property {string} [hidePassword] - Visible text of the button when the
+   *   password is currently visible. Plain text only.
+   * @property {string} [showPasswordAriaLabel] - aria-label of the button when
+   *   the password is currently hidden. Plain text only.
+   * @property {string} [hidePasswordAriaLabel] - aria-label of the button when
+   *   the password is currently visible. Plain text only.
+   * @property {string} [passwordShownAnnouncement] - Screen reader
+   *   announcement to make when the password has just become visible.
+   *   Plain text only.
+   * @property {string} [passwordHiddenAnnouncement] - Screen reader
+   *   announcement to make when the password has just been hidden.
+   *   Plain text only.
+   */
+
+  /**
+   * @import { Schema } from '../../common/configuration.mjs'
+   */
+  PasswordInput.moduleName = 'govuk-password-input';
+  PasswordInput.defaults = Object.freeze({
+    i18n: {
+      showPassword: 'Show',
+      hidePassword: 'Hide',
+      showPasswordAriaLabel: 'Show password',
+      hidePasswordAriaLabel: 'Hide password',
+      passwordShownAnnouncement: 'Your password is visible',
+      passwordHiddenAnnouncement: 'Your password is hidden'
+    }
+  });
+  PasswordInput.schema = Object.freeze({
+    properties: {
+      i18n: {
+        type: 'object'
+      }
+    }
+  });
 
   /**
    * Radios component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for radios
+   * @preserve
    */
-  function Radios ($module) {
-    if (!($module instanceof HTMLElement)) {
-      return this
+  class Radios extends Component {
+    /**
+     * Radios can be associated with a 'conditionally revealed' content block –
+     * for example, a radio for 'Phone' could reveal an additional form field for
+     * the user to enter their phone number.
+     *
+     * These associations are made using a `data-aria-controls` attribute, which
+     * is promoted to an aria-controls attribute during initialisation.
+     *
+     * We also need to restore the state of any conditional reveals on the page
+     * (for example if the user has navigated back), and set up event handlers to
+     * keep the reveal in sync with the radio state.
+     *
+     * @param {Element | null} $root - HTML element to use for radios
+     */
+    constructor($root) {
+      super($root);
+      this.$inputs = void 0;
+      const $inputs = this.$root.querySelectorAll('input[type="radio"]');
+      if (!$inputs.length) {
+        throw new ElementError({
+          component: Radios,
+          identifier: 'Form inputs (`<input type="radio">`)'
+        });
+      }
+      this.$inputs = $inputs;
+      this.$inputs.forEach($input => {
+        const targetId = $input.getAttribute('data-aria-controls');
+        if (!targetId) {
+          return;
+        }
+        if (!document.getElementById(targetId)) {
+          throw new ElementError({
+            component: Radios,
+            identifier: `Conditional reveal (\`id="${targetId}"\`)`
+          });
+        }
+        $input.setAttribute('aria-controls', targetId);
+        $input.removeAttribute('data-aria-controls');
+      });
+      window.addEventListener('pageshow', () => this.syncAllConditionalReveals());
+      this.syncAllConditionalReveals();
+      this.$root.addEventListener('click', event => this.handleClick(event));
     }
-
-    var $inputs = $module.querySelectorAll('input[type="radio"]');
-    if (!$inputs.length) {
-      return this
+    syncAllConditionalReveals() {
+      this.$inputs.forEach($input => this.syncConditionalRevealWithInputState($input));
     }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$inputs = $inputs;
+    syncConditionalRevealWithInputState($input) {
+      const targetId = $input.getAttribute('aria-controls');
+      if (!targetId) {
+        return;
+      }
+      const $target = document.getElementById(targetId);
+      if ($target != null && $target.classList.contains('govuk-radios__conditional')) {
+        const inputIsChecked = $input.checked;
+        $input.setAttribute('aria-expanded', inputIsChecked.toString());
+        $target.classList.toggle('govuk-radios__conditional--hidden', !inputIsChecked);
+      }
+    }
+    handleClick(event) {
+      const $clickedInput = event.target;
+      if (!($clickedInput instanceof HTMLInputElement) || $clickedInput.type !== 'radio') {
+        return;
+      }
+      const $allInputs = document.querySelectorAll('input[type="radio"][aria-controls]');
+      const $clickedInputForm = $clickedInput.form;
+      const $clickedInputName = $clickedInput.name;
+      $allInputs.forEach($input => {
+        const hasSameFormOwner = $input.form === $clickedInputForm;
+        const hasSameName = $input.name === $clickedInputName;
+        if (hasSameName && hasSameFormOwner) {
+          this.syncConditionalRevealWithInputState($input);
+        }
+      });
+    }
   }
+  Radios.moduleName = 'govuk-radios';
 
   /**
-   * Initialise component
+   * Service Navigation component
    *
-   * Radios can be associated with a 'conditionally revealed' content block – for
-   * example, a radio for 'Phone' could reveal an additional form field for the
-   * user to enter their phone number.
-   *
-   * These associations are made using a `data-aria-controls` attribute, which is
-   * promoted to an aria-controls attribute during initialisation.
-   *
-   * We also need to restore the state of any conditional reveals on the page (for
-   * example if the user has navigated back), and set up event handlers to keep
-   * the reveal in sync with the radio state.
+   * @preserve
    */
-  Radios.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$inputs) {
-      return
-    }
-
-    var $module = this.$module;
-    var $inputs = this.$inputs;
-
-    nodeListForEach($inputs, function ($input) {
-      var targetId = $input.getAttribute('data-aria-controls');
-
-      // Skip radios without data-aria-controls attributes, or where the
-      // target element does not exist.
-      if (!targetId || !document.getElementById(targetId)) {
-        return
+  class ServiceNavigation extends Component {
+    /**
+     * @param {Element | null} $root - HTML element to use for header
+     */
+    constructor($root) {
+      super($root);
+      this.$menuButton = void 0;
+      this.$menu = void 0;
+      this.menuIsOpen = false;
+      this.mql = null;
+      const $menuButton = this.$root.querySelector('.govuk-js-service-navigation-toggle');
+      if (!$menuButton) {
+        return this;
       }
-
-      // Promote the data-aria-controls attribute to a aria-controls attribute
-      // so that the relationship is exposed in the AOM
-      $input.setAttribute('aria-controls', targetId);
-      $input.removeAttribute('data-aria-controls');
-    });
-
-    // When the page is restored after navigating 'back' in some browsers the
-    // state of form controls is not restored until *after* the DOMContentLoaded
-    // event is fired, so we need to sync after the pageshow event in browsers
-    // that support it.
-    window.addEventListener(
-      'onpageshow' in window ? 'pageshow' : 'DOMContentLoaded',
-      this.syncAllConditionalReveals.bind(this)
-    );
-
-    // Although we've set up handlers to sync state on the pageshow or
-    // DOMContentLoaded event, init could be called after those events have fired,
-    // for example if they are added to the page dynamically, so sync now too.
-    this.syncAllConditionalReveals();
-
-    // Handle events
-    $module.addEventListener('click', this.handleClick.bind(this));
-  };
-
-  /**
-   * Sync the conditional reveal states for all radio buttons in this $module.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Radios.prototype.syncAllConditionalReveals = function () {
-    nodeListForEach(this.$inputs, this.syncConditionalRevealWithInputState.bind(this));
-  };
-
-  /**
-   * Sync conditional reveal with the input state
-   *
-   * Synchronise the visibility of the conditional reveal, and its accessible
-   * state, with the input's checked state.
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLInputElement} $input - Radio input
-   */
-  Radios.prototype.syncConditionalRevealWithInputState = function ($input) {
-    var targetId = $input.getAttribute('aria-controls');
-    if (!targetId) {
-      return
-    }
-
-    var $target = document.getElementById(targetId);
-    if ($target && $target.classList.contains('govuk-radios__conditional')) {
-      var inputIsChecked = $input.checked;
-
-      $input.setAttribute('aria-expanded', inputIsChecked.toString());
-      $target.classList.toggle('govuk-radios__conditional--hidden', !inputIsChecked);
-    }
-  };
-
-  /**
-   * Click event handler
-   *
-   * Handle a click within the $module – if the click occurred on a radio, sync
-   * the state of the conditional reveal for all radio buttons in the same form
-   * with the same name (because checking one radio could have un-checked a radio
-   * in another $module)
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - Click event
-   */
-  Radios.prototype.handleClick = function (event) {
-    var $component = this;
-    var $clickedInput = event.target;
-
-    // Ignore clicks on things that aren't radio buttons
-    if (!($clickedInput instanceof HTMLInputElement) || $clickedInput.type !== 'radio') {
-      return
-    }
-
-    // We only need to consider radios with conditional reveals, which will have
-    // aria-controls attributes.
-    var $allInputs = document.querySelectorAll('input[type="radio"][aria-controls]');
-
-    var $clickedInputForm = $clickedInput.form;
-    var $clickedInputName = $clickedInput.name;
-
-    nodeListForEach($allInputs, function ($input) {
-      var hasSameFormOwner = $input.form === $clickedInputForm;
-      var hasSameName = $input.name === $clickedInputName;
-
-      if (hasSameName && hasSameFormOwner) {
-        $component.syncConditionalRevealWithInputState($input);
+      const menuId = $menuButton.getAttribute('aria-controls');
+      if (!menuId) {
+        throw new ElementError({
+          component: ServiceNavigation,
+          identifier: 'Navigation button (`<button class="govuk-js-service-navigation-toggle">`) attribute (`aria-controls`)'
+        });
       }
-    });
-  };
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+      const $menu = document.getElementById(menuId);
+      if (!$menu) {
+        throw new ElementError({
+          component: ServiceNavigation,
+          element: $menu,
+          identifier: `Navigation (\`<ul id="${menuId}">\`)`
+        });
+      }
+      this.$menu = $menu;
+      this.$menuButton = $menuButton;
+      this.setupResponsiveChecks();
+      this.$menuButton.addEventListener('click', () => this.handleMenuButtonClick());
+    }
+    setupResponsiveChecks() {
+      const breakpoint = getBreakpoint('tablet');
+      if (!breakpoint.value) {
+        throw new ElementError({
+          component: ServiceNavigation,
+          identifier: `CSS custom property (\`${breakpoint.property}\`) on pseudo-class \`:root\``
+        });
+      }
+      this.mql = window.matchMedia(`(min-width: ${breakpoint.value})`);
+      if ('addEventListener' in this.mql) {
+        this.mql.addEventListener('change', () => this.checkMode());
+      } else {
+        this.mql.addListener(() => this.checkMode());
+      }
+      this.checkMode();
+    }
+    checkMode() {
+      if (!this.mql || !this.$menu || !this.$menuButton) {
+        return;
+      }
+      if (this.mql.matches) {
+        this.$menu.removeAttribute('hidden');
+        this.$menuButton.setAttribute('hidden', '');
+      } else {
+        this.$menuButton.removeAttribute('hidden');
+        this.$menuButton.setAttribute('aria-expanded', this.menuIsOpen.toString());
+        if (this.menuIsOpen) {
+          this.$menu.removeAttribute('hidden');
+        } else {
+          this.$menu.setAttribute('hidden', '');
+        }
+      }
+    }
+    handleMenuButtonClick() {
+      this.menuIsOpen = !this.menuIsOpen;
+      this.checkMode();
+    }
+  }
+  ServiceNavigation.moduleName = 'govuk-service-navigation';
 
   /**
    * Skip link component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for skip link
+   * @preserve
+   * @augments Component<HTMLAnchorElement>
    */
-  function SkipLink ($module) {
-    if (!($module instanceof HTMLAnchorElement)) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$linkedElement = null;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.linkedElementListener = false;
-  }
-
-  /**
-   * Initialise component
-   */
-  SkipLink.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module) {
-      return
-    }
-
-    // Check for linked element
-    var $linkedElement = this.getLinkedElement();
-    if (!$linkedElement) {
-      return
-    }
-
-    this.$linkedElement = $linkedElement;
-    this.$module.addEventListener('click', this.focusLinkedElement.bind(this));
-  };
-
-  /**
-   * Get linked element
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {HTMLElement | null} $linkedElement - DOM element linked to from the skip link
-   */
-  SkipLink.prototype.getLinkedElement = function () {
-    var linkedElementId = this.getFragmentFromUrl();
-    if (!linkedElementId) {
-      return null
-    }
-
-    return document.getElementById(linkedElementId)
-  };
-
-  /**
-   * Focus the linked element
-   *
-   * Set tabindex and helper CSS class. Set listener to remove them on blur.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  SkipLink.prototype.focusLinkedElement = function () {
-    var $linkedElement = this.$linkedElement;
-
-    if (!$linkedElement.getAttribute('tabindex')) {
-      // Set the element tabindex to -1 so it can be focused with JavaScript.
-      $linkedElement.setAttribute('tabindex', '-1');
-      $linkedElement.classList.add('govuk-skip-link-focused-element');
-
-      // Add listener for blur on the focused element (unless the listener has previously been added)
-      if (!this.linkedElementListener) {
-        this.$linkedElement.addEventListener('blur', this.removeFocusProperties.bind(this));
-        this.linkedElementListener = true;
+  class SkipLink extends Component {
+    /**
+     * @param {Element | null} $root - HTML element to use for skip link
+     * @throws {ElementError} when $root is not set or the wrong type
+     * @throws {ElementError} when $root.hash does not contain a hash
+     * @throws {ElementError} when the linked element is missing or the wrong type
+     */
+    constructor($root) {
+      var _this$$root$getAttrib;
+      super($root);
+      const hash = this.$root.hash;
+      const href = (_this$$root$getAttrib = this.$root.getAttribute('href')) != null ? _this$$root$getAttrib : '';
+      if (this.$root.origin !== window.location.origin || this.$root.pathname !== window.location.pathname) {
+        return;
       }
-    }
-
-    $linkedElement.focus();
-  };
-
-  /**
-   * Remove the tabindex that makes the linked element focusable because the element only needs to be
-   * focusable until it has received programmatic focus and a screen reader has announced it.
-   *
-   * Remove the CSS class that removes the native focus styles.
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  SkipLink.prototype.removeFocusProperties = function () {
-    this.$linkedElement.removeAttribute('tabindex');
-    this.$linkedElement.classList.remove('govuk-skip-link-focused-element');
-  };
-
-  /**
-   * Get fragment from URL
-   *
-   * Extract the fragment (everything after the hash symbol) from a URL, but not including
-   * the symbol.
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {string | undefined} Fragment from URL, without the hash symbol
-   */
-  SkipLink.prototype.getFragmentFromUrl = function () {
-    // Bail if the anchor link doesn't have a hash
-    if (!this.$module.hash) {
-      return
-    }
-
-    return this.$module.hash.split('#').pop()
-  };
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-      var detect = (
-        'document' in this && "nextElementSibling" in document.documentElement
-      );
-
-      if (detect) return
-
-      Object.defineProperty(Element.prototype, "nextElementSibling", {
-        get: function(){
-          var el = this.nextSibling;
-          while (el && el.nodeType !== 1) { el = el.nextSibling; }
-          return el;
+      const linkedElementId = hash.replace('#', '');
+      if (!linkedElementId) {
+        throw new ElementError(`Skip link: Target link (\`href="${href}"\`) has no hash fragment`);
+      }
+      const $linkedElement = document.getElementById(linkedElementId);
+      if (!$linkedElement) {
+        throw new ElementError({
+          component: SkipLink,
+          element: $linkedElement,
+          identifier: `Target content (\`id="${linkedElementId}"\`)`
+        });
+      }
+      this.$root.addEventListener('click', () => setFocus($linkedElement, {
+        onBeforeFocus() {
+          $linkedElement.classList.add('govuk-skip-link-focused-element');
+        },
+        onBlur() {
+          $linkedElement.classList.remove('govuk-skip-link-focused-element');
         }
-      });
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  // @ts-nocheck
-
-  (function(undefined) {
-
-      var detect = (
-        'document' in this && "previousElementSibling" in document.documentElement
-      );
-
-      if (detect) return
-
-      Object.defineProperty(Element.prototype, 'previousElementSibling', {
-        get: function(){
-          var el = this.previousSibling;
-          while (el && el.nodeType !== 1) { el = el.previousSibling; }
-          return el;
-        }
-      });
-
-  }).call('object' === typeof window && window || 'object' === typeof self && self || 'object' === typeof global && global || {});
-
-  /* eslint-disable es-x/no-function-prototype-bind -- Polyfill imported */
+      }));
+    }
+  }
+  SkipLink.elementType = HTMLAnchorElement;
+  SkipLink.moduleName = 'govuk-skip-link';
 
   /**
    * Tabs component
    *
-   * @class
-   * @param {Element} $module - HTML element to use for tabs
+   * @preserve
    */
-  function Tabs ($module) {
-    if (!($module instanceof HTMLElement)) {
-      return this
-    }
-
-    var $tabs = $module.querySelectorAll('a.govuk-tabs__tab');
-    if (!$tabs.length) {
-      return this
-    }
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$module = $module;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.$tabs = $tabs;
-
-    /** @deprecated Will be made private in v5.0 */
-    this.keys = { left: 37, right: 39, up: 38, down: 40 };
-
-    /** @deprecated Will be made private in v5.0 */
-    this.jsHiddenClass = 'govuk-tabs__panel--hidden';
-
-    // Save bounded functions to use when removing event listeners during teardown
-
-    /** @deprecated Will be made private in v5.0 */
-    this.boundTabClick = this.onTabClick.bind(this);
-
-    /** @deprecated Will be made private in v5.0 */
-    this.boundTabKeydown = this.onTabKeydown.bind(this);
-
-    /** @deprecated Will be made private in v5.0 */
-    this.boundOnHashChange = this.onHashChange.bind(this);
-
-    /** @deprecated Will be made private in v5.0 */
-    this.changingHash = false;
-  }
-
-  /**
-   * Initialise component
-   */
-  Tabs.prototype.init = function () {
-    // Check that required elements are present
-    if (!this.$module || !this.$tabs) {
-      return
-    }
-
-    if (typeof window.matchMedia === 'function') {
-      this.setupResponsiveChecks();
-    } else {
-      this.setup();
-    }
-  };
-
-  /**
-   * Setup viewport resize check
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.setupResponsiveChecks = function () {
-    /** @deprecated Will be made private in v5.0 */
-    this.mql = window.matchMedia('(min-width: 40.0625em)');
-    this.mql.addListener(this.checkMode.bind(this));
-    this.checkMode();
-  };
-
-  /**
-   * Setup or teardown handler for viewport resize check
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.checkMode = function () {
-    if (this.mql.matches) {
-      this.setup();
-    } else {
-      this.teardown();
-    }
-  };
-
-  /**
-   * Setup tab component
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.setup = function () {
-    var $component = this;
-    var $module = this.$module;
-    var $tabs = this.$tabs;
-    var $tabList = $module.querySelector('.govuk-tabs__list');
-    var $tabListItems = $module.querySelectorAll('.govuk-tabs__list-item');
-
-    if (!$tabs || !$tabList || !$tabListItems) {
-      return
-    }
-
-    $tabList.setAttribute('role', 'tablist');
-
-    nodeListForEach($tabListItems, function ($item) {
-      $item.setAttribute('role', 'presentation');
-    });
-
-    nodeListForEach($tabs, function ($tab) {
-      // Set HTML attributes
-      $component.setAttributes($tab);
-
-      // Handle events
-      $tab.addEventListener('click', $component.boundTabClick, true);
-      $tab.addEventListener('keydown', $component.boundTabKeydown, true);
-
-      // Remove old active panels
-      $component.hideTab($tab);
-    });
-
-    // Show either the active tab according to the URL's hash or the first tab
-    var $activeTab = this.getTab(window.location.hash) || this.$tabs[0];
-    if (!$activeTab) {
-      return
-    }
-
-    this.showTab($activeTab);
-
-    // Handle hashchange events
-    window.addEventListener('hashchange', this.boundOnHashChange, true);
-  };
-
-  /**
-   * Teardown tab component
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.teardown = function () {
-    var $component = this;
-    var $module = this.$module;
-    var $tabs = this.$tabs;
-    var $tabList = $module.querySelector('.govuk-tabs__list');
-    var $tabListItems = $module.querySelectorAll('a.govuk-tabs__list-item');
-
-    if (!$tabs || !$tabList || !$tabListItems) {
-      return
-    }
-
-    $tabList.removeAttribute('role');
-
-    nodeListForEach($tabListItems, function ($item) {
-      $item.removeAttribute('role');
-    });
-
-    nodeListForEach($tabs, function ($tab) {
-      // Remove events
-      $tab.removeEventListener('click', $component.boundTabClick, true);
-      $tab.removeEventListener('keydown', $component.boundTabKeydown, true);
-
-      // Unset HTML attributes
-      $component.unsetAttributes($tab);
-    });
-
-    // Remove hashchange event handler
-    window.removeEventListener('hashchange', this.boundOnHashChange, true);
-  };
-
-  /**
-   * Handle hashchange event
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {void | undefined} Returns void, or undefined when prevented
-   */
-  Tabs.prototype.onHashChange = function () {
-    var hash = window.location.hash;
-    var $tabWithHash = this.getTab(hash);
-    if (!$tabWithHash) {
-      return
-    }
-
-    // Prevent changing the hash
-    if (this.changingHash) {
+  class Tabs extends Component {
+    /**
+     * @param {Element | null} $root - HTML element to use for tabs
+     */
+    constructor($root) {
+      super($root);
+      this.$tabs = void 0;
+      this.$tabList = void 0;
+      this.$tabListItems = void 0;
+      this.jsHiddenClass = 'govuk-tabs__panel--hidden';
       this.changingHash = false;
-      return
+      this.boundTabClick = void 0;
+      this.boundTabKeydown = void 0;
+      this.boundOnHashChange = void 0;
+      this.mql = null;
+      const $tabs = this.$root.querySelectorAll('a.govuk-tabs__tab');
+      if (!$tabs.length) {
+        throw new ElementError({
+          component: Tabs,
+          identifier: 'Links (`<a class="govuk-tabs__tab">`)'
+        });
+      }
+      this.$tabs = $tabs;
+      this.boundTabClick = this.onTabClick.bind(this);
+      this.boundTabKeydown = this.onTabKeydown.bind(this);
+      this.boundOnHashChange = this.onHashChange.bind(this);
+      const $tabList = this.$root.querySelector('.govuk-tabs__list');
+      const $tabListItems = this.$root.querySelectorAll('li.govuk-tabs__list-item');
+      if (!$tabList) {
+        throw new ElementError({
+          component: Tabs,
+          identifier: 'List (`<ul class="govuk-tabs__list">`)'
+        });
+      }
+      if (!$tabListItems.length) {
+        throw new ElementError({
+          component: Tabs,
+          identifier: 'List items (`<li class="govuk-tabs__list-item">`)'
+        });
+      }
+      this.$tabList = $tabList;
+      this.$tabListItems = $tabListItems;
+      this.setupResponsiveChecks();
     }
-
-    // Show either the active tab according to the URL's hash or the first tab
-    var $previousTab = this.getCurrentTab();
-    if (!$previousTab) {
-      return
+    setupResponsiveChecks() {
+      const breakpoint = getBreakpoint('tablet');
+      if (!breakpoint.value) {
+        throw new ElementError({
+          component: Tabs,
+          identifier: `CSS custom property (\`${breakpoint.property}\`) on pseudo-class \`:root\``
+        });
+      }
+      this.mql = window.matchMedia(`(min-width: ${breakpoint.value})`);
+      if ('addEventListener' in this.mql) {
+        this.mql.addEventListener('change', () => this.checkMode());
+      } else {
+        this.mql.addListener(() => this.checkMode());
+      }
+      this.checkMode();
     }
-
-    this.hideTab($previousTab);
-    this.showTab($tabWithHash);
-    $tabWithHash.focus();
-  };
-
-  /**
-   * Hide panel for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.hideTab = function ($tab) {
-    this.unhighlightTab($tab);
-    this.hidePanel($tab);
-  };
-
-  /**
-   * Show panel for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.showTab = function ($tab) {
-    this.highlightTab($tab);
-    this.showPanel($tab);
-  };
-
-  /**
-   * Get tab link by hash
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {string} hash - Hash fragment including #
-   * @returns {HTMLAnchorElement | null} Tab link
-   */
-  Tabs.prototype.getTab = function (hash) {
-    // @ts-expect-error `HTMLAnchorElement` type expected
-    return this.$module.querySelector('a.govuk-tabs__tab[href="' + hash + '"]')
-  };
-
-  /**
-   * Set tab link and panel attributes
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.setAttributes = function ($tab) {
-    // set tab attributes
-    var panelId = this.getHref($tab).slice(1);
-    $tab.setAttribute('id', 'tab_' + panelId);
-    $tab.setAttribute('role', 'tab');
-    $tab.setAttribute('aria-controls', panelId);
-    $tab.setAttribute('aria-selected', 'false');
-    $tab.setAttribute('tabindex', '-1');
-
-    // set panel attributes
-    var $panel = this.getPanel($tab);
-    if (!$panel) {
-      return
+    checkMode() {
+      var _this$mql;
+      if ((_this$mql = this.mql) != null && _this$mql.matches) {
+        this.setup();
+      } else {
+        this.teardown();
+      }
     }
-
-    $panel.setAttribute('role', 'tabpanel');
-    $panel.setAttribute('aria-labelledby', $tab.id);
-    $panel.classList.add(this.jsHiddenClass);
-  };
-
-  /**
-   * Unset tab link and panel attributes
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.unsetAttributes = function ($tab) {
-    // unset tab attributes
-    $tab.removeAttribute('id');
-    $tab.removeAttribute('role');
-    $tab.removeAttribute('aria-controls');
-    $tab.removeAttribute('aria-selected');
-    $tab.removeAttribute('tabindex');
-
-    // unset panel attributes
-    var $panel = this.getPanel($tab);
-    if (!$panel) {
-      return
+    setup() {
+      var _this$getTab;
+      this.$tabList.setAttribute('role', 'tablist');
+      this.$tabListItems.forEach($item => {
+        $item.setAttribute('role', 'presentation');
+      });
+      this.$tabs.forEach($tab => {
+        this.setAttributes($tab);
+        $tab.addEventListener('click', this.boundTabClick, true);
+        $tab.addEventListener('keydown', this.boundTabKeydown, true);
+        this.hideTab($tab);
+      });
+      const $activeTab = (_this$getTab = this.getTab(window.location.hash)) != null ? _this$getTab : this.$tabs[0];
+      this.showTab($activeTab);
+      window.addEventListener('hashchange', this.boundOnHashChange, true);
     }
-
-    $panel.removeAttribute('role');
-    $panel.removeAttribute('aria-labelledby');
-    $panel.classList.remove(this.jsHiddenClass);
-  };
-
-  /**
-   * Handle tab link clicks
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {MouseEvent} event - Mouse click event
-   * @returns {void} Returns void
-   */
-  Tabs.prototype.onTabClick = function (event) {
-    var $currentTab = this.getCurrentTab();
-    var $nextTab = event.currentTarget;
-
-    if (!$currentTab || !($nextTab instanceof HTMLAnchorElement)) {
-      return
+    teardown() {
+      this.$tabList.removeAttribute('role');
+      this.$tabListItems.forEach($item => {
+        $item.removeAttribute('role');
+      });
+      this.$tabs.forEach($tab => {
+        $tab.removeEventListener('click', this.boundTabClick, true);
+        $tab.removeEventListener('keydown', this.boundTabKeydown, true);
+        this.unsetAttributes($tab);
+      });
+      window.removeEventListener('hashchange', this.boundOnHashChange, true);
     }
-
-    event.preventDefault();
-
-    this.hideTab($currentTab);
-    this.showTab($nextTab);
-    this.createHistoryEntry($nextTab);
-  };
-
-  /**
-   * Update browser URL hash fragment for tab
-   *
-   * - Allows back/forward to navigate tabs
-   * - Avoids page jump when hash changes
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.createHistoryEntry = function ($tab) {
-    var $panel = this.getPanel($tab);
-    if (!$panel) {
-      return
+    onHashChange() {
+      const hash = window.location.hash;
+      const $tabWithHash = this.getTab(hash);
+      if (!$tabWithHash) {
+        return;
+      }
+      if (this.changingHash) {
+        this.changingHash = false;
+        return;
+      }
+      const $previousTab = this.getCurrentTab();
+      if (!$previousTab) {
+        return;
+      }
+      this.hideTab($previousTab);
+      this.showTab($tabWithHash);
+      $tabWithHash.focus();
     }
-
-    // Save and restore the id
-    // so the page doesn't jump when a user clicks a tab (which changes the hash)
-    var panelId = $panel.id;
-    $panel.id = '';
-    this.changingHash = true;
-    window.location.hash = this.getHref($tab).slice(1);
-    $panel.id = panelId;
-  };
-
-  /**
-   * Handle tab keydown event
-   *
-   * - Press right/down arrow for next tab
-   * - Press left/up arrow for previous tab
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {KeyboardEvent} event - Keydown event
-   */
-  Tabs.prototype.onTabKeydown = function (event) {
-    switch (event.keyCode) {
-      case this.keys.left:
-      case this.keys.up:
-        this.activatePreviousTab();
-        event.preventDefault();
-        break
-      case this.keys.right:
-      case this.keys.down:
-        this.activateNextTab();
-        event.preventDefault();
-        break
+    hideTab($tab) {
+      this.unhighlightTab($tab);
+      this.hidePanel($tab);
     }
-  };
-
-  /**
-   * Activate next tab
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.activateNextTab = function () {
-    var $currentTab = this.getCurrentTab();
-    if (!$currentTab || !$currentTab.parentElement) {
-      return
+    showTab($tab) {
+      this.highlightTab($tab);
+      this.showPanel($tab);
     }
-
-    var $nextTabListItem = $currentTab.parentElement.nextElementSibling;
-    if (!$nextTabListItem) {
-      return
+    getTab(hash) {
+      return this.$root.querySelector(`a.govuk-tabs__tab[href="${hash}"]`);
     }
-
-    var $nextTab = $nextTabListItem.querySelector('a.govuk-tabs__tab');
-    if (!$nextTab) {
-      return
+    setAttributes($tab) {
+      const panelId = $tab.hash.replace('#', '');
+      if (!panelId) {
+        return;
+      }
+      $tab.setAttribute('id', `tab_${panelId}`);
+      $tab.setAttribute('role', 'tab');
+      $tab.setAttribute('aria-controls', panelId);
+      $tab.setAttribute('aria-selected', 'false');
+      $tab.setAttribute('tabindex', '-1');
+      const $panel = this.getPanel($tab);
+      if (!$panel) {
+        return;
+      }
+      $panel.setAttribute('role', 'tabpanel');
+      $panel.setAttribute('aria-labelledby', $tab.id);
+      $panel.classList.add(this.jsHiddenClass);
     }
-
-    this.hideTab($currentTab);
-    this.showTab($nextTab);
-    $nextTab.focus();
-    this.createHistoryEntry($nextTab);
-  };
-
-  /**
-   * Activate previous tab
-   *
-   * @deprecated Will be made private in v5.0
-   */
-  Tabs.prototype.activatePreviousTab = function () {
-    var $currentTab = this.getCurrentTab();
-    if (!$currentTab || !$currentTab.parentElement) {
-      return
+    unsetAttributes($tab) {
+      $tab.removeAttribute('id');
+      $tab.removeAttribute('role');
+      $tab.removeAttribute('aria-controls');
+      $tab.removeAttribute('aria-selected');
+      $tab.removeAttribute('tabindex');
+      const $panel = this.getPanel($tab);
+      if (!$panel) {
+        return;
+      }
+      $panel.removeAttribute('role');
+      $panel.removeAttribute('aria-labelledby');
+      $panel.classList.remove(this.jsHiddenClass);
     }
-
-    var $previousTabListItem = $currentTab.parentElement.previousElementSibling;
-    if (!$previousTabListItem) {
-      return
+    onTabClick(event) {
+      const $currentTab = this.getCurrentTab();
+      const $nextTab = event.currentTarget;
+      if (!$currentTab || !($nextTab instanceof HTMLAnchorElement)) {
+        return;
+      }
+      event.preventDefault();
+      this.hideTab($currentTab);
+      this.showTab($nextTab);
+      this.createHistoryEntry($nextTab);
     }
-
-    var $previousTab = $previousTabListItem.querySelector('a.govuk-tabs__tab');
-    if (!$previousTab) {
-      return
+    createHistoryEntry($tab) {
+      const $panel = this.getPanel($tab);
+      if (!$panel) {
+        return;
+      }
+      const panelId = $panel.id;
+      $panel.id = '';
+      this.changingHash = true;
+      window.location.hash = panelId;
+      $panel.id = panelId;
     }
-
-    this.hideTab($currentTab);
-    this.showTab($previousTab);
-    $previousTab.focus();
-    this.createHistoryEntry($previousTab);
-  };
-
-  /**
-   * Get tab panel for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   * @returns {Element | null} Tab panel
-   */
-  Tabs.prototype.getPanel = function ($tab) {
-    return this.$module.querySelector(this.getHref($tab))
-  };
-
-  /**
-   * Show tab panel for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.showPanel = function ($tab) {
-    var $panel = this.getPanel($tab);
-    if (!$panel) {
-      return
+    onTabKeydown(event) {
+      switch (event.key) {
+        case 'ArrowLeft':
+        case 'Left':
+          this.activatePreviousTab();
+          event.preventDefault();
+          break;
+        case 'ArrowRight':
+        case 'Right':
+          this.activateNextTab();
+          event.preventDefault();
+          break;
+      }
     }
-
-    $panel.classList.remove(this.jsHiddenClass);
-  };
-
-  /**
-   * Hide tab panel for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.hidePanel = function ($tab) {
-    var $panel = this.getPanel($tab);
-    if (!$panel) {
-      return
+    activateNextTab() {
+      const $currentTab = this.getCurrentTab();
+      if (!($currentTab != null && $currentTab.parentElement)) {
+        return;
+      }
+      const $nextTabListItem = $currentTab.parentElement.nextElementSibling;
+      if (!$nextTabListItem) {
+        return;
+      }
+      const $nextTab = $nextTabListItem.querySelector('a.govuk-tabs__tab');
+      if (!$nextTab) {
+        return;
+      }
+      this.hideTab($currentTab);
+      this.showTab($nextTab);
+      $nextTab.focus();
+      this.createHistoryEntry($nextTab);
     }
-
-    $panel.classList.add(this.jsHiddenClass);
-  };
-
-  /**
-   * Unset 'selected' state for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.unhighlightTab = function ($tab) {
-    if (!$tab.parentElement) {
-      return
+    activatePreviousTab() {
+      const $currentTab = this.getCurrentTab();
+      if (!($currentTab != null && $currentTab.parentElement)) {
+        return;
+      }
+      const $previousTabListItem = $currentTab.parentElement.previousElementSibling;
+      if (!$previousTabListItem) {
+        return;
+      }
+      const $previousTab = $previousTabListItem.querySelector('a.govuk-tabs__tab');
+      if (!$previousTab) {
+        return;
+      }
+      this.hideTab($currentTab);
+      this.showTab($previousTab);
+      $previousTab.focus();
+      this.createHistoryEntry($previousTab);
     }
-
-    $tab.setAttribute('aria-selected', 'false');
-    $tab.parentElement.classList.remove('govuk-tabs__list-item--selected');
-    $tab.setAttribute('tabindex', '-1');
-  };
-
-  /**
-   * Set 'selected' state for tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   */
-  Tabs.prototype.highlightTab = function ($tab) {
-    if (!$tab.parentElement) {
-      return
+    getPanel($tab) {
+      const panelId = $tab.hash.replace('#', '');
+      if (!panelId) {
+        return null;
+      }
+      return this.$root.querySelector(`#${panelId}`);
     }
-
-    $tab.setAttribute('aria-selected', 'true');
-    $tab.parentElement.classList.add('govuk-tabs__list-item--selected');
-    $tab.setAttribute('tabindex', '0');
-  };
-
-  /**
-   * Get current tab link
-   *
-   * @deprecated Will be made private in v5.0
-   * @returns {HTMLAnchorElement | null} Tab link
-   */
-  Tabs.prototype.getCurrentTab = function () {
-    return this.$module.querySelector('.govuk-tabs__list-item--selected a.govuk-tabs__tab')
-  };
-
-  /**
-   * Get link hash fragment for href attribute
-   *
-   * this is because IE doesn't always return the actual value but a relative full path
-   * should be a utility function most prob
-   * {@link http://labs.thesedays.com/blog/2010/01/08/getting-the-href-value-with-jquery-in-ie/}
-   *
-   * @deprecated Will be made private in v5.0
-   * @param {HTMLAnchorElement} $tab - Tab link
-   * @returns {string} Hash fragment including #
-   */
-  Tabs.prototype.getHref = function ($tab) {
-    var href = $tab.getAttribute('href');
-    var hash = href.slice(href.indexOf('#'), href.length);
-    return hash
-  };
+    showPanel($tab) {
+      const $panel = this.getPanel($tab);
+      if (!$panel) {
+        return;
+      }
+      $panel.classList.remove(this.jsHiddenClass);
+    }
+    hidePanel($tab) {
+      const $panel = this.getPanel($tab);
+      if (!$panel) {
+        return;
+      }
+      $panel.classList.add(this.jsHiddenClass);
+    }
+    unhighlightTab($tab) {
+      if (!$tab.parentElement) {
+        return;
+      }
+      $tab.setAttribute('aria-selected', 'false');
+      $tab.parentElement.classList.remove('govuk-tabs__list-item--selected');
+      $tab.setAttribute('tabindex', '-1');
+    }
+    highlightTab($tab) {
+      if (!$tab.parentElement) {
+        return;
+      }
+      $tab.setAttribute('aria-selected', 'true');
+      $tab.parentElement.classList.add('govuk-tabs__list-item--selected');
+      $tab.setAttribute('tabindex', '0');
+    }
+    getCurrentTab() {
+      return this.$root.querySelector('.govuk-tabs__list-item--selected a.govuk-tabs__tab');
+    }
+  }
+  Tabs.moduleName = 'govuk-tabs';
 
   /**
    * Initialise all components
@@ -5037,106 +2602,175 @@
    * Use the `data-module` attributes to find, instantiate and init all of the
    * components provided as part of GOV.UK Frontend.
    *
-   * @param {Config} [config] - Config for all components
+   * @param {Config | Element | Document | null} [scopeOrConfig] - Scope of the document to search within or config for all components (with optional scope)
    */
-  function initAll (config) {
-    config = typeof config !== 'undefined' ? config : {};
-
-    // Allow the user to initialise GOV.UK Frontend in only certain sections of the page
-    // Defaults to the entire document if nothing is set.
-    var $scope = config.scope instanceof HTMLElement ? config.scope : document;
-
-    var $accordions = $scope.querySelectorAll('[data-module="govuk-accordion"]');
-    nodeListForEach($accordions, function ($accordion) {
-      new Accordion($accordion, config.accordion).init();
-    });
-
-    var $buttons = $scope.querySelectorAll('[data-module="govuk-button"]');
-    nodeListForEach($buttons, function ($button) {
-      new Button($button, config.button).init();
-    });
-
-    var $characterCounts = $scope.querySelectorAll('[data-module="govuk-character-count"]');
-    nodeListForEach($characterCounts, function ($characterCount) {
-      new CharacterCount($characterCount, config.characterCount).init();
-    });
-
-    var $checkboxes = $scope.querySelectorAll('[data-module="govuk-checkboxes"]');
-    nodeListForEach($checkboxes, function ($checkbox) {
-      new Checkboxes($checkbox).init();
-    });
-
-    var $details = $scope.querySelectorAll('[data-module="govuk-details"]');
-    nodeListForEach($details, function ($detail) {
-      new Details($detail).init();
-    });
-
-    // Find first error summary module to enhance.
-    var $errorSummary = $scope.querySelector('[data-module="govuk-error-summary"]');
-    if ($errorSummary) {
-      new ErrorSummary($errorSummary, config.errorSummary).init();
+  function initAll(scopeOrConfig = {}) {
+    const config = isObject(scopeOrConfig) ? scopeOrConfig : {};
+    const options = normaliseOptions(scopeOrConfig);
+    try {
+      if (!isSupported()) {
+        throw new SupportError();
+      }
+      if (options.scope === null) {
+        throw new ElementError({
+          element: options.scope,
+          identifier: 'GOV.UK Frontend scope element (`$scope`)'
+        });
+      }
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error, {
+          config
+        });
+      } else {
+        console.log(error);
+      }
+      return;
     }
-
-    var $exitThisPageButtons = $scope.querySelectorAll('[data-module="govuk-exit-this-page"]');
-    nodeListForEach($exitThisPageButtons, function ($button) {
-      new ExitThisPage($button, config.exitThisPage).init();
-    });
-
-    // Find first header module to enhance.
-    var $header = $scope.querySelector('[data-module="govuk-header"]');
-    if ($header) {
-      new Header($header).init();
-    }
-
-    var $notificationBanners = $scope.querySelectorAll('[data-module="govuk-notification-banner"]');
-    nodeListForEach($notificationBanners, function ($notificationBanner) {
-      new NotificationBanner($notificationBanner, config.notificationBanner).init();
-    });
-
-    var $radios = $scope.querySelectorAll('[data-module="govuk-radios"]');
-    nodeListForEach($radios, function ($radio) {
-      new Radios($radio).init();
-    });
-
-    // Find first skip link module to enhance.
-    var $skipLink = $scope.querySelector('[data-module="govuk-skip-link"]');
-    if ($skipLink) {
-      new SkipLink($skipLink).init();
-    }
-
-    var $tabs = $scope.querySelectorAll('[data-module="govuk-tabs"]');
-    nodeListForEach($tabs, function ($tabs) {
-      new Tabs($tabs).init();
+    const components = [[Accordion, config.accordion], [Button, config.button], [CharacterCount, config.characterCount], [Checkboxes], [ErrorSummary, config.errorSummary], [ExitThisPage, config.exitThisPage], [FileUpload, config.fileUpload], [Header], [NotificationBanner, config.notificationBanner], [PasswordInput, config.passwordInput], [Radios], [ServiceNavigation], [SkipLink], [Tabs]];
+    components.forEach(([Component, componentConfig]) => {
+      createAll(Component, componentConfig, options);
     });
   }
 
   /**
-   * Config for all components
+   * Create all instances of a specific component on the page
+   *
+   * Uses the `data-module` attribute to find all elements matching the specified
+   * component on the page, creating instances of the component object for each
+   * of them.
+   *
+   * Any component errors will be caught and logged to the console.
+   *
+   * @template {CompatibleClass} ComponentClass
+   * @param {ComponentClass} Component - class of the component to create
+   * @param {ComponentConfig<ComponentClass>} [config] - Config supplied to component
+   * @param {OnErrorCallback<ComponentClass> | Element | Document | null | CreateAllOptions<ComponentClass>} [scopeOrOptions] - options for createAll including scope of the document to search within and callback function if error throw by component on init
+   * @returns {Array<InstanceType<ComponentClass>>} - array of instantiated components
+   */
+  function createAll(Component, config, scopeOrOptions) {
+    let $elements;
+    const options = normaliseOptions(scopeOrOptions);
+    try {
+      var _options$scope;
+      if (!isSupported()) {
+        throw new SupportError();
+      }
+      if (options.scope === null) {
+        throw new ElementError({
+          element: options.scope,
+          component: Component,
+          identifier: 'Scope element (`$scope`)'
+        });
+      }
+      $elements = (_options$scope = options.scope) == null ? void 0 : _options$scope.querySelectorAll(`[data-module="${Component.moduleName}"]`);
+    } catch (error) {
+      if (options.onError) {
+        options.onError(error, {
+          component: Component,
+          config
+        });
+      } else {
+        console.log(error);
+      }
+      return [];
+    }
+    return Array.from($elements != null ? $elements : []).map($element => {
+      try {
+        return typeof config !== 'undefined' ? new Component($element, config) : new Component($element);
+      } catch (error) {
+        if (options.onError) {
+          options.onError(error, {
+            element: $element,
+            component: Component,
+            config
+          });
+        } else {
+          console.log(error);
+        }
+        return null;
+      }
+    }).filter(Boolean);
+  }
+  /**
+   * @typedef {{new (...args: any[]): any, moduleName: string}} CompatibleClass
+   */
+  /**
+   * Config for all components via `initAll()`
    *
    * @typedef {object} Config
-   * @property {Element} [scope=document] - Scope to query for components
-   * @property {import('./components/accordion/accordion.mjs').AccordionConfig} [accordion] - Accordion config
-   * @property {import('./components/button/button.mjs').ButtonConfig} [button] - Button config
-   * @property {import('./components/character-count/character-count.mjs').CharacterCountConfig} [characterCount] - Character Count config
-   * @property {import('./components/error-summary/error-summary.mjs').ErrorSummaryConfig} [errorSummary] - Error Summary config
-   * @property {import('./components/exit-this-page/exit-this-page.mjs').ExitThisPageConfig} [exitThisPage] - Exit This Page config
-   * @property {import('./components/notification-banner/notification-banner.mjs').NotificationBannerConfig} [notificationBanner] - Notification Banner config
+   * @property {Element | Document | null} [scope] - Scope of the document to search within
+   * @property {OnErrorCallback<CompatibleClass>} [onError] - Initialisation error callback
+   * @property {AccordionConfig} [accordion] - Accordion config
+   * @property {ButtonConfig} [button] - Button config
+   * @property {CharacterCountConfig} [characterCount] - Character Count config
+   * @property {ErrorSummaryConfig} [errorSummary] - Error Summary config
+   * @property {ExitThisPageConfig} [exitThisPage] - Exit This Page config
+   * @property {FileUploadConfig} [fileUpload] - File Upload config
+   * @property {NotificationBannerConfig} [notificationBanner] - Notification Banner config
+   * @property {PasswordInputConfig} [passwordInput] - Password input config
+   */
+  /**
+   * Config for individual components
+   *
+   * @import { AccordionConfig } from './components/accordion/accordion.mjs'
+   * @import { ButtonConfig } from './components/button/button.mjs'
+   * @import { CharacterCountConfig } from './components/character-count/character-count.mjs'
+   * @import { ErrorSummaryConfig } from './components/error-summary/error-summary.mjs'
+   * @import { ExitThisPageConfig } from './components/exit-this-page/exit-this-page.mjs'
+   * @import { NotificationBannerConfig } from './components/notification-banner/notification-banner.mjs'
+   * @import { PasswordInputConfig } from './components/password-input/password-input.mjs'
+   * @import { FileUploadConfig } from './components/file-upload/file-upload.mjs'
+   */
+  /**
+   * Component config keys, e.g. `accordion` and `characterCount`
+   *
+   * @typedef {keyof Omit<Config, 'scope' | 'onError'>} ConfigKey
+   */
+  /**
+   * @template {CompatibleClass} ComponentClass
+   * @typedef {ConstructorParameters<ComponentClass>[1]} ComponentConfig
+   */
+  /**
+   * @template {CompatibleClass} ComponentClass
+   * @typedef {object} ErrorContext
+   * @property {Element} [element] - Element used for component module initialisation
+   * @property {ComponentClass} [component] - Class of component
+   * @property {Config | ComponentConfig<ComponentClass>} [config] - Config supplied to components
+   */
+  /**
+   * @template {CompatibleClass} ComponentClass
+   * @callback OnErrorCallback
+   * @param {unknown} error - Thrown error
+   * @param {ErrorContext<ComponentClass>} context - Object containing the element, component class and configuration
+   */
+  /**
+   * @template {CompatibleClass} ComponentClass
+   * @typedef {object} CreateAllOptions
+   * @property {Element | Document | null} [scope] - scope of the document to search within
+   * @property {OnErrorCallback<ComponentClass>} [onError] - callback function if error throw by component on init
    */
 
-  exports.initAll = initAll;
-  exports.version = version;
   exports.Accordion = Accordion;
   exports.Button = Button;
-  exports.Details = Details;
   exports.CharacterCount = CharacterCount;
   exports.Checkboxes = Checkboxes;
+  exports.Component = Component;
+  exports.ConfigurableComponent = ConfigurableComponent;
   exports.ErrorSummary = ErrorSummary;
   exports.ExitThisPage = ExitThisPage;
+  exports.FileUpload = FileUpload;
   exports.Header = Header;
   exports.NotificationBanner = NotificationBanner;
+  exports.PasswordInput = PasswordInput;
   exports.Radios = Radios;
+  exports.ServiceNavigation = ServiceNavigation;
   exports.SkipLink = SkipLink;
   exports.Tabs = Tabs;
+  exports.createAll = createAll;
+  exports.initAll = initAll;
+  exports.isSupported = isSupported;
+  exports.version = version;
 
-})));
-//# sourceMappingURL=all.js.map
+}));
+//# sourceMappingURL=all.bundle.js.map

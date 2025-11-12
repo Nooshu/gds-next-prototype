@@ -14,7 +14,7 @@ interface HomePageProps {
 export default function Home({ searchParams }: HomePageProps) {
     return (
         <>
-            <GovHeader serviceName="Find a court or tribunal" />
+            <GovHeader />
             <main
                 className="govuk-main-wrapper"
                 id="main-content"

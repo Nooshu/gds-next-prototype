@@ -1,5 +1,5 @@
 interface GovHeaderProps {
-  serviceName: string;
+  serviceName?: string;
 }
 
 export default function GovHeader({ serviceName }: GovHeaderProps) {
@@ -13,11 +13,13 @@ export default function GovHeader({ serviceName }: GovHeaderProps) {
             </span>
           </a>
         </div>
-        <div className="govuk-header__content">
-          <a href="/" className="govuk-header__link govuk-header__link--service-name">
-            {serviceName}
-          </a>
-        </div>
+        {serviceName && (
+          <div className="govuk-header__content">
+            <a href="/" className="govuk-header__link govuk-header__link--service-name">
+              {serviceName}
+            </a>
+          </div>
+        )}
       </div>
     </header>
   );

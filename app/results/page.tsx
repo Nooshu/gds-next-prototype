@@ -111,7 +111,7 @@ export default function ResultsPage({ searchParams }: ResultsPageProps) {
     return (
         <>
             <FocusOnRender />
-            <GovHeader serviceName="Find a court or tribunal" />
+            <GovHeader />
             <main
                 className="govuk-main-wrapper"
                 id="main-content"
