@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "next dev",
         "build": "next build",
-        "start": "next start",
+        "start": "node scripts/build-and-start.mjs",
         "start:safe": "node scripts/build-and-start.mjs",
         "lint": "next lint",
         "test:automated:axe": "node axe-test.cjs",

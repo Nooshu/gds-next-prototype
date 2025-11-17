@@ -61,7 +61,7 @@ function build() {
 function start() {
     console.log('🚀 Starting production server...\n');
     try {
-        execSync('npm start', {
+        execSync('next start', {
             cwd: projectRoot,
             stdio: 'inherit',
         });
