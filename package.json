@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "next dev",
+        "dev": "next dev -p 3000",
         "build": "npm run copy:govuk-assets && next build",
         "copy:govuk-assets": "node scripts/copy-govuk-assets.mjs",
         "start": "node scripts/build-and-start.mjs",

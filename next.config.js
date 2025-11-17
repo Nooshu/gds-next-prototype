@@ -16,6 +16,12 @@ const nextConfig = {
             {
                 message: /Skipped not serializable cache item/,
             },
+            {
+                message: /No serializer registered for Warning/,
+            },
+            {
+                message: /while serializing webpack/,
+            },
         ];
         return config;
     },

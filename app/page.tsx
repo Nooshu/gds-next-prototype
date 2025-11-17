@@ -1,50 +1,67 @@
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
-import { GovH1 } from "@/components/govuk/GovHeading";
-import SearchTemplate from "@/templates/SearchTemplate";
+import { GovParagraph } from "@/components/govuk/GovParagraph";
+import Link from "next/link";
 
 export const metadata = {
-    title: "Find a court or tribunal",
+    title: "Next.js React SSR",
 };
 
-interface HomePageProps {
-    searchParams?: { error?: string };
-}
-
-export default function Home({ searchParams }: HomePageProps) {
+export default function Home() {
     return (
         <>
             <GovHeader />
-            <main
-                className="govuk-main-wrapper"
-                id="main-content"
-                role="main"
-                tabIndex={-1}
-            >
-                <GovContainer>
-                    <GovH1>Find a court or tribunal</GovH1>
-                    {searchParams?.error && (
-                        <div
-                            className="govuk-error-summary"
-                            role="alert"
-                            aria-labelledby="pe-error-title"
-                        >
-                            <h2
-                                id="pe-error-title"
-                                className="govuk-error-summary__title"
-                            >
-                                There is a problem
-                            </h2>
-                            <div className="govuk-error-summary__body">
-                                <ul className="govuk-list govuk-error-summary__list">
-                                    <li>{searchParams.error}</li>
-                                </ul>
+            <GovContainer>
+                <main className="govuk-main-wrapper" id="main-content" role="main">
+                    <div className="govuk-grid-row">
+                        <div className="govuk-grid-column-two-thirds">
+                            <h1 className="govuk-heading-xl">
+                                Next.js React SSR
+                            </h1>
+                            <GovParagraph>
+                                Welcome to the NestJS GOV.UK Frontend application,
+                                this is the homepage of the application with links to
+                                all the components from the latest version of GOV.UK
+                                Frontend.
+                            </GovParagraph>
+                            <div className="govuk-panel govuk-panel--confirmation">
+                                <h1 className="govuk-panel__title">
+                                    Try our new journey
+                                </h1>
+                                <div className="govuk-panel__body">
+                                    Find a Court or Tribunal Service
+                                </div>
+                            </div>
+                            <div className="govuk-button-group govuk-!-margin-top-4">
+                                <Link
+                                    href="/find-a-court-or-tribunal"
+                                    role="button"
+                                    draggable="false"
+                                    className="govuk-button govuk-button--start"
+                                    data-module="govuk-button"
+                                    data-govuk-button-init=""
+                                >
+                                    Start
+                                    <svg
+                                        className="govuk-button__start-icon"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="17.5"
+                                        height="19"
+                                        viewBox="0 0 33 40"
+                                        aria-hidden="true"
+                                        focusable="false"
+                                    >
+                                        <path
+                                            fill="currentColor"
+                                            d="M0 0h13l20 20-20 20H0l20-20z"
+                                        />
+                                    </svg>
+                                </Link>
                             </div>
                         </div>
-                    )}
-                    <SearchTemplate />
-                </GovContainer>
-            </main>
+                    </div>
+                </main>
+            </GovContainer>
         </>
     );
 }

@@ -23,3 +23,16 @@ export function GovH2({ children, className = "" }: GovH2Props) {
     </h2>
   );
 }
+
+interface GovH3Props {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function GovH3({ children, className = "" }: GovH3Props) {
+  return (
+    <h3 className={`govuk-heading-m ${className}`}>
+      {children}
+    </h3>
+  );
+}
