@@ -12,6 +12,10 @@ const nextConfig = {
             {
                 message: /autoprefixer.*start value has mixed support/,
             },
+            // Suppress webpack cache serialization warnings
+            {
+                message: /Skipped not serializable cache item/,
+            },
         ];
         return config;
     },

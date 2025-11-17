@@ -5,7 +5,8 @@
     "type": "module",
     "scripts": {
         "dev": "next dev",
-        "build": "next build",
+        "build": "npm run copy:govuk-assets && next build",
+        "copy:govuk-assets": "node scripts/copy-govuk-assets.mjs",
         "start": "node scripts/build-and-start.mjs",
         "start:safe": "node scripts/build-and-start.mjs",
         "lint": "next lint",
@@ -13,7 +14,8 @@
         "test:automated:lighthouse": "node lighthouse-test.cjs",
         "test:automated:playwright": "npx playwright test",
         "verify:dependencies": "node scripts/verify-dependencies.mjs",
-        "verify:dependencies:verbose": "node scripts/verify-dependencies.mjs --verbose"
+        "verify:dependencies:verbose": "node scripts/verify-dependencies.mjs --verbose",
+        "postinstall": "npm run copy:govuk-assets"
     },
     "dependencies": {
         "next": "14.2.33",

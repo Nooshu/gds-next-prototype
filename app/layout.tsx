@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { GovFooter } from "@/components/govuk/GovFooter";
 import { GovUKFrontendInit } from "@/components/govuk/GovUKFrontendInit";
-import "./styles/govuk-frontend.min.css";
+import "govuk-frontend/dist/govuk/govuk-frontend.min.css";
 import "./styles/moj-frontend.min.css";
 import "./styles/custom.css";
 
