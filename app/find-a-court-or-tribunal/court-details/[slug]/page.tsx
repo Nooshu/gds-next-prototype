@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import React from "react";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH2, GovH3 } from "@/components/govuk/GovHeading";
@@ -9,9 +10,9 @@ import { GovFooter } from "@/components/govuk/GovFooter";
 import Link from "next/link";
 
 interface CourtDetailsPageProps {
-    params: {
+    params: Promise<{
         slug: string;
-    };
+    }>;
 }
 
 interface CourtData {
@@ -348,14 +349,21 @@ const courtsData: Record<string, CourtData> = {
 };
 
 export default function CourtDetailsPage({ params }: CourtDetailsPageProps) {
+    const [slug, setSlug] = useState<string>("");
+    const [courtData, setCourtData] = useState<CourtData | null>(null);
+
     useEffect(() => {
         // Add js-enabled and govuk-frontend-supported classes
         document.body.className = document.body.className
             ? `${document.body.className} js-enabled govuk-frontend-supported`
             : "js-enabled govuk-frontend-supported";
-    }, []);
 
-    const courtData = courtsData[params.slug];
+        // Resolve params promise
+        params.then((resolvedParams) => {
+            setSlug(resolvedParams.slug);
+            setCourtData(courtsData[resolvedParams.slug] || null);
+        });
+    }, [params]);
 
     if (!courtData) {
         return (

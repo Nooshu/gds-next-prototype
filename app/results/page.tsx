@@ -19,13 +19,14 @@ interface SearchParams {
 }
 
 interface ResultsPageProps {
-    searchParams: SearchParams;
+    searchParams: Promise<SearchParams>;
 }
 
 export async function generateMetadata({
     searchParams,
 }: ResultsPageProps): Promise<Metadata> {
-    const query = searchParams.q || "";
+    const params = await searchParams;
+    const query = params.q || "";
     const title = query ? `Results for "${query}"` : "Search results";
     return {
         title,
@@ -105,8 +106,11 @@ async function ResultsContent({ query }: { query: string }) {
     );
 }
 
-export default function ResultsPage({ searchParams }: ResultsPageProps) {
-    const query = searchParams.q || "";
+export default async function ResultsPage({
+    searchParams,
+}: ResultsPageProps) {
+    const params = await searchParams;
+    const query = params.q || "";
 
     return (
         <>

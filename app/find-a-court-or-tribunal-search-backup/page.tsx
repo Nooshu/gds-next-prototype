@@ -8,10 +8,13 @@ export const metadata = {
 };
 
 interface FindACourtPageProps {
-    searchParams?: { error?: string };
+    searchParams?: Promise<{ error?: string }>;
 }
 
-export default function FindACourtPage({ searchParams }: FindACourtPageProps) {
+export default async function FindACourtPage({
+    searchParams,
+}: FindACourtPageProps) {
+    const params = await searchParams;
     return (
         <>
             <GovHeader />
@@ -23,7 +26,7 @@ export default function FindACourtPage({ searchParams }: FindACourtPageProps) {
             >
                 <GovContainer>
                     <GovH1>Find a court or tribunal</GovH1>
-                    {searchParams?.error && (
+                    {params?.error && (
                         <div
                             className="govuk-error-summary"
                             role="alert"
@@ -37,7 +40,7 @@ export default function FindACourtPage({ searchParams }: FindACourtPageProps) {
                             </h2>
                             <div className="govuk-error-summary__body">
                                 <ul className="govuk-list govuk-error-summary__list">
-                                    <li>{searchParams.error}</li>
+                                    <li>{params.error}</li>
                                 </ul>
                             </div>
                         </div>

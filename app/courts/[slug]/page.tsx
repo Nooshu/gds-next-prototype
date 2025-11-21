@@ -36,9 +36,9 @@ interface Court {
 }
 
 interface CourtPageProps {
-    params: {
+    params: Promise<{
         slug: string;
-    };
+    }>;
 }
 
 async function getCourt(slug: string): Promise<Court | null> {
@@ -60,14 +60,16 @@ export async function generateStaticParams() {
 export async function generateMetadata({
     params,
 }: CourtPageProps): Promise<Metadata> {
-    const court = await getCourt(params.slug);
+    const { slug } = await params;
+    const court = await getCourt(slug);
     return {
         title: court ? court.name : "Court details",
     };
 }
 
 export default async function CourtPage({ params }: CourtPageProps) {
-    const court = await getCourt(params.slug);
+    const { slug } = await params;
+    const court = await getCourt(slug);
 
     if (!court) {
         notFound();

@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "next dev -p 3000",
-        "build": "npm run copy:govuk-assets && next build",
+        "build": "npm run copy:govuk-assets && next build --webpack",
         "copy:govuk-assets": "node scripts/copy-govuk-assets.mjs",
         "start": "node scripts/build-and-start.mjs",
         "start:safe": "node scripts/build-and-start.mjs",
@@ -18,9 +18,9 @@
         "postinstall": "npm run copy:govuk-assets"
     },
     "dependencies": {
-        "next": "14.2.33",
-        "react": "18.3.1",
-        "react-dom": "18.3.1",
+        "next": "16.0.3",
+        "react": "19.2.0",
+        "react-dom": "19.2.0",
         "govuk-frontend": "5.13.0",
         "@ministryofjustice/frontend": "7.1.0",
         "sass": "1.94.2"
@@ -28,12 +28,12 @@
     "devDependencies": {
         "typescript": "5.9.3",
         "@types/node": "24.10.1",
-        "@types/react": "18.3.26",
-        "@types/react-dom": "18.3.7",
-        "eslint": "8.57.1",
-        "eslint-config-next": "14.2.33",
+        "@types/react": "19.2.6",
+        "@types/react-dom": "19.2.3",
+        "eslint": "9.39.1",
+        "eslint-config-next": "16.0.3",
         "@axe-core/puppeteer": "4.11.0",
-        "puppeteer": "24.30.0",
+        "puppeteer": "24.31.0",
         "lighthouse": "13.0.1",
         "chrome-launcher": "1.2.1"
     },

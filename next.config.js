@@ -1,6 +1,14 @@
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
+    // Set the project root to silence lockfile warning
+    outputFileTracingRoot: __dirname,
     webpack: (config) => {
         // Suppress autoprefixer warnings for pre-compiled CSS files
         config.ignoreWarnings = [
@@ -25,6 +33,8 @@ const nextConfig = {
         ];
         return config;
     },
+    // Explicitly use webpack instead of Turbopack (Next.js 16)
+    turbopack: {},
 };
 
 export default nextConfig;
