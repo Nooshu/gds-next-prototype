@@ -28,7 +28,7 @@
     "devDependencies": {
         "typescript": "5.9.3",
         "@types/node": "24.10.1",
-        "@types/react": "19.2.6",
+        "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
         "eslint": "9.39.1",
         "eslint-config-next": "16.0.3",
@@ -38,9 +38,9 @@
         "chrome-launcher": "1.2.1"
     },
     "overrides": {
-        "rimraf": "6.1.0",
-        "glob": "11.1.0",
-        "@humanwhocodes/config-array": "npm:@eslint/config-array@0.21.1",
-        "@humanwhocodes/object-schema": "npm:@eslint/object-schema@2.1.7"
+        "rimraf": "6.1.2",
+        "glob": "13.0.0",
+        "@humanwhocodes/config-array": "npm:@eslint/config-array@0.23.0",
+        "@humanwhocodes/object-schema": "npm:@eslint/object-schema@3.0.0"
     }
 }
