@@ -3,6 +3,8 @@
 
   "extends": ["local>hmcts/.github:renovate-config"],
 
+  "dependencyDashboard": true,
+
   "prConcurrentLimit": 1,
   "prHourlyLimit": 1,
 
