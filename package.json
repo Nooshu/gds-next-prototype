@@ -18,7 +18,7 @@
         "postinstall": "npm run copy:govuk-assets"
     },
     "dependencies": {
-        "next": "16.0.3",
+        "next": "16.0.4",
         "react": "19.2.0",
         "react-dom": "19.2.0",
         "govuk-frontend": "5.13.0",
@@ -31,11 +31,12 @@
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
         "eslint": "9.39.1",
-        "eslint-config-next": "16.0.3",
+        "eslint-config-next": "16.0.4",
         "@axe-core/puppeteer": "4.11.0",
         "puppeteer": "24.31.0",
         "lighthouse": "13.0.1",
-        "chrome-launcher": "1.2.1"
+        "chrome-launcher": "1.2.1",
+        "@playwright/test": "1.57.0"
     },
     "overrides": {
         "rimraf": "6.1.2",
