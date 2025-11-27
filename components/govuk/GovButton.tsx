@@ -33,6 +33,7 @@ export const GovButton: React.FC<GovButtonProps> = ({
             disabled={disabled}
             onClick={onClick}
             id={id}
+            data-module={undefined}
         >
             {children}
         </button>

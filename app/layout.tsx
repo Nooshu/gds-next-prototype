@@ -20,7 +20,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="en" className="govuk-template">
+        <html lang="en" className="govuk-template" suppressHydrationWarning>
             <body className="govuk-template__body govuk-frontend-supported">
                 <a className="govuk-skip-link" href="#main-content">
                     Skip to main content
