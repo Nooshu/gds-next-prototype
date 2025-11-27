@@ -7,6 +7,7 @@ interface GovButtonProps {
     className?: string;
     disabled?: boolean;
     onClick?: (_e: React.MouseEvent<HTMLButtonElement>) => void;
+    id?: string;
 }
 
 export const GovButton: React.FC<GovButtonProps> = ({
@@ -16,6 +17,7 @@ export const GovButton: React.FC<GovButtonProps> = ({
     className = "",
     disabled = false,
     onClick,
+    id,
 }) => {
     const baseClass =
         variant === "primary"
@@ -30,6 +32,7 @@ export const GovButton: React.FC<GovButtonProps> = ({
             className={`${baseClass} ${className}`.trim()}
             disabled={disabled}
             onClick={onClick}
+            id={id}
         >
             {children}
         </button>

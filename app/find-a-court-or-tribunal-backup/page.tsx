@@ -54,7 +54,8 @@ export default function FindACourtOptionsPage() {
             <GovContainer>
                 <main className="govuk-main-wrapper" id="main-content" role="main">
                     {showError && (
-                        <FocusOnRender>
+                        <>
+                            <FocusOnRender selector=".govuk-error-summary" />
                             <GovErrorSummary title="There is a problem">
                                 <li>
                                     <a href="#courtOption">
@@ -62,7 +63,7 @@ export default function FindACourtOptionsPage() {
                                     </a>
                                 </li>
                             </GovErrorSummary>
-                        </FocusOnRender>
+                        </>
                     )}
 
                     <GovH2 className="govuk-!-margin-top-6" id="court-name-question">
