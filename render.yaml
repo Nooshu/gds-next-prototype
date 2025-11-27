@@ -14,3 +14,4 @@ services:
         value: 3000
     # Auto-deploy when main branch is updated
     autoDeploy: true
+

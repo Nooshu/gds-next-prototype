@@ -94,3 +94,4 @@ docker run -p 8080:3000 hmcts-prototype
 
 ### Memory Issues
 If running on limited memory, you may need to increase Docker's memory allocation or use a platform with more RAM.
+
