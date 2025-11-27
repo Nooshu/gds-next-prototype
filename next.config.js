@@ -9,6 +9,8 @@ const nextConfig = {
     reactStrictMode: true,
     // Set the project root to silence lockfile warning
     outputFileTracingRoot: __dirname,
+    // Enable standalone output for Docker deployment
+    output: 'standalone',
     webpack: (config) => {
         // Suppress autoprefixer warnings for pre-compiled CSS files
         config.ignoreWarnings = [

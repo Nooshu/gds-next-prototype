@@ -68,8 +68,7 @@ export default function FindACourtSearchPage() {
     const filteredCourts = searchTerm && hasSearched
         ? courtsData.filter((court) =>
               court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              court.area?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              court.address?.toLowerCase().includes(searchTerm.toLowerCase())
+              court.area?.toLowerCase().includes(searchTerm.toLowerCase())
           )
         : [];
 

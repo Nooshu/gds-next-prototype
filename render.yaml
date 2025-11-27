@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: hmcts-gds-next-prototype
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+    # Auto-deploy when main branch is updated
+    autoDeploy: true
