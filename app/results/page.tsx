@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import FocusOnRender from "@/components/a11y/FocusOnRender";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
-import { GovH1, GovH2 } from "@/components/govuk/GovHeading";
+import { GovH1 } from "@/components/govuk/GovHeading";
 import { GovParagraph } from "@/components/govuk/GovParagraph";
 import Link from "next/link";
 import { Metadata } from "next";
@@ -65,12 +65,12 @@ async function ResultsContent({ query }: { query: string }) {
                 className="govuk-visually-hidden"
                 key={`results-${query}`}
             >
-                {filteredCourts.length} results found for "{query}"
+                {filteredCourts.length} results found for &ldquo;{query}&rdquo;
             </div>
 
             {filteredCourts.length === 0 ? (
                 <div className="govuk-inset-text">
-                    <p>No courts or tribunals found for "{query}".</p>
+                    <p>No courts or tribunals found for &ldquo;{query}&rdquo;.</p>
                     <p>Try a different search term or check your spelling.</p>
                 </div>
             ) : (
@@ -127,7 +127,7 @@ export default async function ResultsPage({
                     {query && (
                         <>
                             <GovParagraph>
-                                Results for: <strong>"{query}"</strong>
+                                Results for: <strong>&ldquo;{query}&rdquo;</strong>
                             </GovParagraph>
                             <ResultsList query={query} />
                         </>

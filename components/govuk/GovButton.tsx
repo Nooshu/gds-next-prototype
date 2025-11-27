@@ -6,7 +6,7 @@ interface GovButtonProps {
     variant?: "primary" | "secondary" | "warning";
     className?: string;
     disabled?: boolean;
-    onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onClick?: (_e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export const GovButton: React.FC<GovButtonProps> = ({

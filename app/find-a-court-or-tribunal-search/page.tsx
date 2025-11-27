@@ -10,7 +10,7 @@ import courtsData from "@/app/_data/courts/index.json";
 
 export default function FindACourtSearchPage() {
     const [showResults, setShowResults] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, _setSearchQuery] = useState("");
     const [searchTerm, setSearchTerm] = useState("");
 
     const handleSubmit = (e: FormEvent<HTMLFormElement>) => {

@@ -237,7 +237,7 @@ async function checkServer() {
     try {
         const response = await fetch(BASE_URL);
         return response.ok;
-    } catch (error) {
+        } catch {
         return false;
     }
 }

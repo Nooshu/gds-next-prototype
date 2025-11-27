@@ -36,7 +36,7 @@ function needsBuild() {
         if (packageJsonStat.mtime > buildIdStat.mtime) {
             return true;
         }
-    } catch (error) {
+    } catch {
         // If we can't check, assume build is needed
         return true;
     }
@@ -52,7 +52,7 @@ function build() {
             stdio: 'inherit',
         });
         console.log('✅ Build completed successfully\n');
-    } catch (error) {
+    } catch {
         console.error('❌ Build failed');
         process.exit(1);
     }
@@ -65,7 +65,7 @@ function start() {
             cwd: projectRoot,
             stdio: 'inherit',
         });
-    } catch (error) {
+    } catch {
         console.error('❌ Failed to start server');
         process.exit(1);
     }

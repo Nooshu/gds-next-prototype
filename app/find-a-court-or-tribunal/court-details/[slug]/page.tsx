@@ -349,7 +349,7 @@ const courtsData: Record<string, CourtData> = {
 };
 
 export default function CourtDetailsPage({ params }: CourtDetailsPageProps) {
-    const [slug, setSlug] = useState<string>("");
+    const [_slug, setSlug] = useState<string>("");
     const [courtData, setCourtData] = useState<CourtData | null>(null);
 
     useEffect(() => {

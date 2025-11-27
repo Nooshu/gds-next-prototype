@@ -5,7 +5,7 @@ interface GovFormProps {
     action?: string;
     method?: string;
     className?: string;
-    onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
+    onSubmit?: (_e: React.FormEvent<HTMLFormElement>) => void;
 }
 
 export const GovForm: React.FC<GovFormProps> = ({
