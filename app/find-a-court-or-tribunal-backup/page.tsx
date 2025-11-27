@@ -1,19 +1,70 @@
+"use client";
+
+import { useState } from "react";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
 import { GovH2 } from "@/components/govuk/GovHeading";
 import { GovParagraph } from "@/components/govuk/GovParagraph";
-import Link from "next/link";
+import { GovRadios, RadioOption } from "@/components/govuk/GovRadios";
+import GovErrorSummary from "@/components/govuk/GovErrorSummary";
+import { GovButton } from "@/components/govuk/GovButton";
+import { useRouter } from "next/navigation";
+import FocusOnRender from "@/components/a11y/FocusOnRender";
 
-export const metadata = {
-    title: "Find a court or tribunal",
-};
+const radioOptions: RadioOption[] = [
+    {
+        value: "option1",
+        label: "I have the name",
+    },
+    {
+        value: "option2", 
+        label: "I do not have the name",
+    },
+];
 
 export default function FindACourtOptionsPage() {
+    const [selectedOption, setSelectedOption] = useState<string>("");
+    const [error, setError] = useState<string>("");
+    const [showError, setShowError] = useState<boolean>(false);
+    const router = useRouter();
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!selectedOption) {
+            setError("Select whether you know the name of the court or tribunal");
+            setShowError(true);
+            return;
+        }
+
+        setError("");
+        setShowError(false);
+        
+        // Navigate based on selection
+        if (selectedOption === "option1") {
+            router.push("/find-a-court-or-tribunal-search");
+        } else {
+            router.push("/find-a-court-or-tribunal-search");
+        }
+    };
+
     return (
         <>
             <GovHeader />
             <GovContainer>
                 <main className="govuk-main-wrapper" id="main-content" role="main">
+                    {showError && (
+                        <FocusOnRender>
+                            <GovErrorSummary title="There is a problem">
+                                <li>
+                                    <a href="#courtOption">
+                                        Select whether you know the name of the court or tribunal
+                                    </a>
+                                </li>
+                            </GovErrorSummary>
+                        </FocusOnRender>
+                    )}
+
                     <GovH2 className="govuk-!-margin-top-6" id="court-name-question">
                         Do you know the name of the court or tribunal
                     </GovH2>
@@ -24,67 +75,26 @@ export default function FindACourtOptionsPage() {
                     </GovParagraph>
 
                     <form
-                        method="POST"
-                        action="/find-a-court-or-tribunal/options"
+                        onSubmit={handleSubmit}
                         noValidate
                         id="optionsForm"
                         aria-labelledby="court-name-question"
                     >
-                        <div className="govuk-form-group">
-                            <fieldset className="govuk-fieldset">
-                                <legend className="govuk-fieldset__legend govuk-fieldset__legend--m">
-                                    Choose one of the following options:
-                                </legend>
-                                <div
-                                    className="govuk-radios"
-                                    data-module="govuk-radios"
-                                    data-govuk-radios-init=""
-                                >
-                                    <div className="govuk-radios__item">
-                                        <input
-                                            className="govuk-radios__input"
-                                            id="courtOption"
-                                            name="courtOption"
-                                            type="radio"
-                                            value="option1"
-                                        />
-                                        <label
-                                            className="govuk-label govuk-radios__label"
-                                            htmlFor="courtOption"
-                                        >
-                                            I have the name
-                                        </label>
-                                    </div>
-                                    <div className="govuk-radios__item">
-                                        <input
-                                            className="govuk-radios__input"
-                                            id="courtOption-2"
-                                            name="courtOption"
-                                            type="radio"
-                                            value="option2"
-                                        />
-                                        <label
-                                            className="govuk-label govuk-radios__label"
-                                            htmlFor="courtOption-2"
-                                        >
-                                            I do not have the name
-                                        </label>
-                                    </div>
-                                </div>
-                            </fieldset>
-                        </div>
+                        <GovRadios
+                            name="courtOption"
+                            id="courtOption"
+                            legend="Choose one of the following options:"
+                            legendSize="m"
+                            options={radioOptions}
+                            value={selectedOption}
+                            onChange={setSelectedOption}
+                            error={showError ? error : undefined}
+                            required
+                        />
 
-                        <Link
-                            href="/find-a-court-or-tribunal-search"
-                            role="button"
-                            draggable="false"
-                            className="govuk-button"
-                            data-module="govuk-button"
-                            id="submit-button"
-                            data-govuk-button-init=""
-                        >
+                        <GovButton type="submit" id="submit-button">
                             Continue
-                        </Link>
+                        </GovButton>
                     </form>
                 </main>
             </GovContainer>

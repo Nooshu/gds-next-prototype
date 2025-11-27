@@ -33,7 +33,7 @@ const nextConfig = {
         ];
         return config;
     },
-    // Explicitly use webpack instead of Turbopack (Next.js 16)
+    // Empty turbopack config to silence warnings but use webpack
     turbopack: {},
 };
 
