@@ -15,3 +15,4 @@ services:
     # Auto-deploy when main branch is updated
     autoDeploy: true
 
+
