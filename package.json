@@ -36,7 +36,7 @@
     "govuk-frontend": "5.13.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-hook-form": "7.66.1",
+    "react-hook-form": "7.67.0",
     "react-router-dom": "7.9.6",
     "react-window": "2.2.3",
     "react-window-infinite-loader": "2.0.0",
@@ -71,7 +71,7 @@
     "postcss": "^8.4.31",
     "sass": "^1.69.5",
     "typescript": "^5.2.2",
-    "vite": "7.2.4",
+    "vite": "^7.2.6",
     "vite-bundle-analyzer": "^1.2.3",
     "vitest": "^4.0.14",
     "wait-on": "^9.0.0"
