@@ -83,7 +83,7 @@ export default function FindACourtOptionsPage() {
                     >
                         <GovRadios
                             name="courtOption"
-                            id="courtOption"
+                                            id="courtOption"
                             legend="Choose one of the following options:"
                             legendSize="m"
                             options={radioOptions}

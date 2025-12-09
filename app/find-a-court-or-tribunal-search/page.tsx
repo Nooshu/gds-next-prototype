@@ -27,7 +27,7 @@ export default function FindACourtSearchPage() {
 
         const handleFormSubmit = (e: Event) => {
             // Always prevent default form submission
-            e.preventDefault();
+        e.preventDefault();
             e.stopPropagation();
             
             // Get the current input value from the DOM directly
@@ -44,17 +44,17 @@ export default function FindACourtSearchPage() {
 
             setError("");
             setShowError(false);
-            setSearchTerm(query);
+        setSearchTerm(query);
             setHasSearched(true);
 
-            // Scroll to results
-            setTimeout(() => {
-                const resultsElement = document.getElementById("courtResults");
-                if (resultsElement) {
-                    resultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-            }, 100);
-        };
+        // Scroll to results
+        setTimeout(() => {
+            const resultsElement = document.getElementById("courtResults");
+            if (resultsElement) {
+                resultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        }, 100);
+    };
 
         // Attach in capture phase with highest priority
         form.addEventListener('submit', handleFormSubmit, true);
@@ -168,9 +168,9 @@ export default function FindACourtSearchPage() {
                                 </GovParagraph>
                                 
                                 {filteredCourts.length > 0 && (
-                                    <GovParagraph>
-                                        Most relevant results displayed.
-                                    </GovParagraph>
+                                <GovParagraph>
+                                    Most relevant results displayed.
+                                </GovParagraph>
                                 )}
 
                                 <hr className="govuk-section-break govuk-section-break--l govuk-section-break--visible" />
@@ -180,37 +180,37 @@ export default function FindACourtSearchPage() {
                                 </h2>
 
                                 {filteredCourts.length > 0 ? (
-                                    <ul
-                                        className="govuk-list"
-                                        aria-labelledby="results-heading"
-                                        aria-describedby="results-count"
-                                    >
+                                <ul
+                                    className="govuk-list"
+                                    aria-labelledby="results-heading"
+                                    aria-describedby="results-count"
+                                >
                                         {filteredCourts.map((court) => {
-                                            // Map court slugs to match the expected URLs
-                                            const slugMap: Record<string, string> = {
-                                                "manchester-crown-court":
-                                                    "manchester-crown",
-                                                "birmingham-crown-court":
-                                                    "birmingham-crown",
-                                                "inner-london-crown-court": "london-crown",
-                                            };
-                                            const urlSlug =
-                                                slugMap[court.slug] || court.slug;
+                                        // Map court slugs to match the expected URLs
+                                        const slugMap: Record<string, string> = {
+                                            "manchester-crown-court":
+                                                "manchester-crown",
+                                            "birmingham-crown-court":
+                                                "birmingham-crown",
+                                            "inner-london-crown-court": "london-crown",
+                                        };
+                                        const urlSlug =
+                                            slugMap[court.slug] || court.slug;
 
-                                            return (
+                                        return (
                                                 <li key={court.slug} className="govuk-!-margin-bottom-4">
-                                                    <h3 className="govuk-heading-m">
-                                                        <Link
-                                                            href={`/find-a-court-or-tribunal/court-details/${urlSlug}`}
+                                                <h3 className="govuk-heading-m">
+                                                    <Link
+                                                        href={`/find-a-court-or-tribunal/court-details/${urlSlug}`}
                                                             className="govuk-link govuk-link--no-visited-state"
-                                                        >
-                                                            {court.name}
-                                                            {court.name ===
-                                                            "Manchester Crown Court"
-                                                                ? " (Minshull St)"
-                                                                : ""}
-                                                        </Link>
-                                                    </h3>
+                                                    >
+                                                        {court.name}
+                                                        {court.name ===
+                                                        "Manchester Crown Court"
+                                                            ? " (Minshull St)"
+                                                            : ""}
+                                                    </Link>
+                                                </h3>
                                                     {court.type && (
                                                         <GovParagraph className="govuk-!-margin-bottom-1">
                                                             <strong>Type:</strong> {court.type}
@@ -221,10 +221,10 @@ export default function FindACourtSearchPage() {
                                                             <strong>Area:</strong> {court.area}
                                                         </GovParagraph>
                                                     )}
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
                                 ) : (
                                     <div className="govuk-inset-text">
                                         <GovParagraph>
