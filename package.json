@@ -23,7 +23,7 @@
         "next": "16.0.8",
         "react": "19.2.1",
         "react-dom": "19.2.1",
-        "sass": "1.95.0"
+        "sass": "1.95.1"
     },
     "devDependencies": {
         "@axe-core/puppeteer": "4.11.0",
