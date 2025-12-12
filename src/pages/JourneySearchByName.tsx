@@ -138,43 +138,43 @@ export const JourneySearchByName: React.FC = () => {
 
       {hasSearched && filteredResults.length > 0 && (
         <>
-          <div className="govuk-grid-row govuk-!-margin-top-6">
-            <div className="govuk-grid-column-two-thirds">
-              <p className="govuk-body">
-                We found courts or tribunals matching your search for '{searchTerm}'.
-              </p>
-              <p className="govuk-body">
-                Most relevant results displayed.
-              </p>
-              
-              <hr className="govuk-section-break govuk-section-break--visible" />
-            </div>
-          </div>
+      <div className="govuk-grid-row govuk-!-margin-top-6">
+        <div className="govuk-grid-column-two-thirds">
+          <p className="govuk-body">
+            We found courts or tribunals matching your search for '{searchTerm}'.
+          </p>
+          <p className="govuk-body">
+            Most relevant results displayed.
+          </p>
+          
+          <hr className="govuk-section-break govuk-section-break--visible" />
+        </div>
+      </div>
 
-          <div className="govuk-grid-row govuk-!-margin-top-6">
-            <div className="govuk-grid-column-two-thirds">
-              <h2 className="govuk-heading-l">Search results</h2>
-              
-              <div className="journey-search-results">
-                <ul className="govuk-list">
+      <div className="govuk-grid-row govuk-!-margin-top-6">
+        <div className="govuk-grid-column-two-thirds">
+          <h2 className="govuk-heading-l">Search results</h2>
+          
+          <div className="journey-search-results">
+            <ul className="govuk-list">
                   {filteredResults.map((result) => (
-                    <li key={result.id} className="govuk-!-margin-bottom-2">
-                      <a
-                        href="#"
-                        className="govuk-link govuk-link--no-visited-state"
-                        onClick={(e) => {
-                          e.preventDefault()
-                          handleResultClick(result.id)
-                        }}
-                      >
-                        {result.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+                <li key={result.id} className="govuk-!-margin-bottom-2">
+                  <a
+                    href="#"
+                    className="govuk-link govuk-link--no-visited-state"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleResultClick(result.id)
+                    }}
+                  >
+                    {result.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
+        </div>
+      </div>
         </>
       )}
 
