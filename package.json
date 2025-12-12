@@ -20,28 +20,28 @@
     "dependencies": {
         "@ministryofjustice/frontend": "7.1.1",
         "govuk-frontend": "5.13.0",
-        "next": "16.0.8",
-        "react": "19.2.1",
-        "react-dom": "19.2.1",
-        "sass": "1.95.1"
+        "next": "16.0.10",
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+        "sass": "1.96.0"
     },
     "devDependencies": {
         "@axe-core/puppeteer": "4.11.0",
-        "@next/eslint-plugin-next": "16.0.8",
+        "@next/eslint-plugin-next": "16.0.10",
         "@playwright/test": "1.57.0",
-        "@types/node": "24.10.2",
+        "@types/node": "25.0.1",
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
         "@typescript-eslint/eslint-plugin": "8.49.0",
         "@typescript-eslint/parser": "8.49.0",
         "chrome-launcher": "1.2.1",
         "eslint": "9.39.1",
-        "eslint-config-next": "16.0.8",
+        "eslint-config-next": "16.0.10",
         "eslint-plugin-react": "7.37.5",
         "eslint-plugin-react-hooks": "7.0.1",
         "globals": "16.5.0",
         "lighthouse": "13.0.1",
-        "puppeteer": "24.32.1",
+        "puppeteer": "24.33.0",
         "typescript": "5.9.3"
     },
     "overrides": {
