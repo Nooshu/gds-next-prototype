@@ -3,6 +3,11 @@
     "version": "0.1.0",
     "private": true,
     "type": "module",
+    "packageManager": "npm@10.8.2",
+    "engines": {
+        "node": "20.18.0",
+        "npm": "10.8.2"
+    },
     "scripts": {
         "dev": "next dev -p 3000",
         "build": "npm run copy:govuk-assets && next build --webpack",
@@ -29,13 +34,13 @@
         "@axe-core/puppeteer": "4.11.0",
         "@next/eslint-plugin-next": "16.0.10",
         "@playwright/test": "1.57.0",
-        "@types/node": "25.0.1",
+        "@types/node": "25.0.2",
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
         "@typescript-eslint/eslint-plugin": "8.49.0",
         "@typescript-eslint/parser": "8.49.0",
         "chrome-launcher": "1.2.1",
-        "eslint": "9.39.1",
+        "eslint": "9.39.2",
         "eslint-config-next": "16.0.10",
         "eslint-plugin-react": "7.37.5",
         "eslint-plugin-react-hooks": "7.0.1",
