@@ -1,5 +1,5 @@
-# Use the official Node.js 20.18.0 Alpine image to pin runtime
-FROM node:20.18.0-alpine AS base
+# Use the official Node.js 20.19.6 Alpine image to pin runtime
+FROM node:20.19.6-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
