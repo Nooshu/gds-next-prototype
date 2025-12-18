@@ -233,6 +233,12 @@ app.get('/health', (req, res) => {
   })
 })
 
+// Serve robots.txt to prevent crawling
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain')
+  res.sendFile(path.join(__dirname, 'dist', 'robots.txt'))
+})
+
 // Catch all handler: send back React's index.html file for any non-API routes
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'))
