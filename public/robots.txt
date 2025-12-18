@@ -1,0 +1,4 @@
+# Disallow all web crawlers and search engines
+User-agent: *
+Disallow: /
+
