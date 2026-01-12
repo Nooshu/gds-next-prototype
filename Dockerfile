@@ -29,6 +29,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the application
+# Ensure NODE_ENV is set to production for proper SSR behavior
+ENV NODE_ENV=production
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -59,7 +61,10 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# Ensure Next.js runs in production mode for proper SSR
+ENV NODE_ENV=production
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
+# This will serve fully rendered HTML even when JavaScript is disabled
 CMD ["node", "server.js"]

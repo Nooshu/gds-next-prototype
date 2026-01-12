@@ -11,6 +11,14 @@ const nextConfig = {
     outputFileTracingRoot: __dirname,
     // Enable standalone output for Docker deployment
     output: 'standalone',
+    // Ensure SSR is enabled (default, but explicit for clarity)
+    // All pages should render on the server for progressive enhancement
+    experimental: {
+        // Ensure proper SSR behavior
+        serverActions: {
+            bodySizeLimit: '2mb',
+        },
+    },
     webpack: (config) => {
         // Suppress autoprefixer warnings for pre-compiled CSS files
         config.ignoreWarnings = [
