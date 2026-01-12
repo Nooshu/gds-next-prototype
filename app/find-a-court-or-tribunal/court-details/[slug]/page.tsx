@@ -1,6 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import { notFound } from "next/navigation";
 import React from "react";
 import GovHeader from "@/components/govuk/GovHeader";
 import GovContainer from "@/components/govuk/GovContainer";
@@ -348,37 +346,13 @@ const courtsData: Record<string, CourtData> = {
     },
 };
 
-export default function CourtDetailsPage({ params }: CourtDetailsPageProps) {
-    const [_slug, setSlug] = useState<string>("");
-    const [courtData, setCourtData] = useState<CourtData | null>(null);
-
-    useEffect(() => {
-        // Add js-enabled and govuk-frontend-supported classes
-        document.body.className = document.body.className
-            ? `${document.body.className} js-enabled govuk-frontend-supported`
-            : "js-enabled govuk-frontend-supported";
-
-        // Resolve params promise
-        params.then((resolvedParams) => {
-            setSlug(resolvedParams.slug);
-            setCourtData(courtsData[resolvedParams.slug] || null);
-        });
-    }, [params]);
+export default async function CourtDetailsPage({ params }: CourtDetailsPageProps) {
+    // Resolve params server-side
+    const { slug } = await params;
+    const courtData = courtsData[slug] || null;
 
     if (!courtData) {
-        return (
-            <>
-                <GovHeader />
-                <GovContainer>
-                    <main className="govuk-main-wrapper" id="main-content" role="main">
-                        <GovH2>Court not found</GovH2>
-                        <GovParagraph>
-                            The court you&apos;re looking for could not be found.
-                        </GovParagraph>
-                    </main>
-                </GovContainer>
-            </>
-        );
+        notFound();
     }
 
     return (
